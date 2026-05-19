@@ -31,12 +31,13 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config = Config::load(cli.config.as_deref())?;
 
+    let client_id = tdlib_rs::create_client();
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
 
     let tg_tx = event_tx.clone();
     let tg_config = config.clone();
     tokio::spawn(async move {
-        if let Err(e) = tg::run(tg_config, tg_tx).await {
+        if let Err(e) = tg::run(client_id, tg_config, tg_tx).await {
             tracing::error!("TDLib error: {e}");
         }
     });
@@ -47,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(config);
+    let mut app = App::new(config, client_id, event_tx);
 
     loop {
         terminal.draw(|frame| ui::draw(frame, &app))?;

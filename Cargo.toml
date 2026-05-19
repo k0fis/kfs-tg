@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/k0fis/kfs-tg"
 
 [dependencies]
-rust-tdlib = { version = "0.4", features = ["client", "tokio"] }
+tdlib-rs = { version = "1.4", features = ["static", "download-tdlib"] }
 ratatui = "0.29"
 crossterm = "0.28"
 tokio = { version = "1", features = ["full"] }
@@ -18,7 +18,11 @@ tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 anyhow = "1"
+
+[build-dependencies]
+tdlib-rs = { version = "1.4", features = ["static", "download-tdlib"] }
 
 [profile.release]
 strip = true
