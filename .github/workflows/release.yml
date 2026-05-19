@@ -44,7 +44,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev zlib1g-dev
+          sudo apt-get install -y libssl-dev zlib1g-dev libc++-dev libc++abi-dev
 
       - name: Install dependencies (Linux arm64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -54,7 +54,7 @@ jobs:
           echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs) main restricted universe" | sudo tee /etc/apt/sources.list.d/arm64.list
           echo "deb [arch=arm64] http://ports.ubuntu.com/ $(lsb_release -cs)-updates main restricted universe" | sudo tee -a /etc/apt/sources.list.d/arm64.list
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev:arm64 zlib1g-dev:arm64
+          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev:arm64 zlib1g-dev:arm64 libc++-dev:arm64 libc++abi-dev:arm64
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
 

@@ -24,7 +24,7 @@ jobs:
       - name: Install TDLib build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libssl-dev zlib1g-dev
+          sudo apt-get install -y libssl-dev zlib1g-dev libc++-dev libc++abi-dev
 
       - name: Check formatting
         run: cargo fmt --check
