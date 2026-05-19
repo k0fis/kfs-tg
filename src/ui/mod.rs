@@ -3,7 +3,7 @@ mod login;
 mod messages;
 
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
 use crate::app::{App, Panel, Screen};
 use crate::keys::Mode;
@@ -25,6 +25,10 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     draw_input(frame, app, chunks[1]);
     draw_status(frame, app, chunks[2]);
+
+    if app.help_visible {
+        draw_help(frame, frame.area());
+    }
 }
 
 fn draw_main(frame: &mut Frame, app: &App, area: Rect) {
@@ -67,9 +71,50 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         Panel::Messages => "messages",
     };
     let text = format!(
-        " {} | {panel_str} | q:quit i:insert h/l:panel j/k:nav",
+        " {} | {panel_str} | q:quit i:insert h/l:panel j/k:nav ?:help",
         app.status
     );
     let bar = Paragraph::new(text).style(Style::default().fg(Color::DarkGray));
     frame.render_widget(bar, area);
+}
+
+fn draw_help(frame: &mut Frame, area: Rect) {
+    let help_text = "\
+ NORMAL mode
+ ───────────────────────
+ j/k       Move down/up
+ h/l       Switch panel
+ Enter     Open chat
+ i         Insert mode
+ g/G       Top / Bottom
+ /         Search
+ r         Reply
+ f         Forward
+ d         Delete
+ Ctrl+r    Refresh
+ q         Quit
+
+ INSERT mode
+ ───────────────────────
+ Enter     Send message
+ Esc       Back to Normal
+ Ctrl+c    Cancel
+
+ Press any key to close";
+
+    let w = 30_u16;
+    let h = 20_u16;
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let popup = Rect::new(x, y, w.min(area.width), h.min(area.height));
+
+    frame.render_widget(Clear, popup);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(" Help ");
+    let paragraph = Paragraph::new(help_text)
+        .block(block)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, popup);
 }

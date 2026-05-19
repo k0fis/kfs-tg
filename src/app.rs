@@ -53,6 +53,7 @@ pub struct App {
     pub status: String,
     pub client_id: i32,
     pub event_tx: mpsc::UnboundedSender<AppEvent>,
+    pub help_visible: bool,
 }
 
 impl App {
@@ -72,10 +73,16 @@ impl App {
             status: "Connecting...".to_string(),
             client_id,
             event_tx,
+            help_visible: false,
         }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+        if self.help_visible {
+            self.help_visible = false;
+            return false;
+        }
+
         if self.screen == Screen::Login {
             return self.handle_login_key(key);
         }
@@ -93,6 +100,7 @@ impl App {
                 self.panel = Panel::Messages;
             }
             Action::ExitInsert => self.mode = Mode::Normal,
+            Action::Help => self.help_visible = true,
             Action::SendMessage => self.send_message(),
             Action::Char(c) if self.mode == Mode::Insert => {
                 self.input.insert(self.input_cursor, c);

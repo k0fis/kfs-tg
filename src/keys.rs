@@ -25,6 +25,7 @@ pub enum Action {
     GoTop,
     GoBottom,
     Refresh,
+    Help,
     Char(char),
     Backspace,
     None,
@@ -53,6 +54,7 @@ fn map_normal(key: KeyEvent) -> Action {
         KeyCode::Char('d') => Action::Delete,
         KeyCode::Char('g') => Action::GoTop,
         KeyCode::Char('G') => Action::GoBottom,
+        KeyCode::Char('?') => Action::Help,
         _ => Action::None,
     }
 }
