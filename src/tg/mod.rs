@@ -131,14 +131,16 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
                         tdlib_rs::enums::ChatType::Secret(s) => {
                             ChatKind::Private { user_id: s.user_id }
                         }
-                        tdlib_rs::enums::ChatType::BasicGroup(g) => {
-                            ChatKind::BasicGroup { group_id: g.basic_group_id }
-                        }
+                        tdlib_rs::enums::ChatType::BasicGroup(g) => ChatKind::BasicGroup {
+                            group_id: g.basic_group_id,
+                        },
                         tdlib_rs::enums::ChatType::Supergroup(sg) => {
                             if sg.is_channel {
                                 ChatKind::Channel
                             } else {
-                                ChatKind::Supergroup { group_id: sg.supergroup_id }
+                                ChatKind::Supergroup {
+                                    group_id: sg.supergroup_id,
+                                }
                             }
                         }
                     };
