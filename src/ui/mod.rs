@@ -29,6 +29,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
     if app.help_visible {
         draw_help(frame, frame.area());
     }
+    if app.cmd_visible {
+        draw_commands(frame, app, frame.area());
+    }
 }
 
 fn draw_main(frame: &mut Frame, app: &App, area: Rect) {
@@ -87,7 +90,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  Enter     Open chat
  i         Insert mode
  g/G       Top / Bottom
- /         Search
+ /         Bot commands
  r         Reply
  f         Forward
  d         Delete
@@ -116,5 +119,48 @@ fn draw_help(frame: &mut Frame, area: Rect) {
     let paragraph = Paragraph::new(help_text)
         .block(block)
         .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, popup);
+}
+
+fn draw_commands(frame: &mut Frame, app: &App, area: Rect) {
+    use ratatui::text::{Line, Span};
+
+    let max_cmd_len = app
+        .bot_commands
+        .iter()
+        .map(|(c, _)| c.len() + 1)
+        .max()
+        .unwrap_or(8);
+
+    let lines: Vec<Line> = app
+        .bot_commands
+        .iter()
+        .enumerate()
+        .map(|(i, (cmd, desc))| {
+            let prefix = if i == app.cmd_cursor { "> " } else { "  " };
+            let style = if i == app.cmd_cursor {
+                Style::default().fg(Color::Black).bg(Color::Cyan)
+            } else {
+                Style::default()
+            };
+            Line::from(vec![Span::styled(
+                format!("{prefix}/{cmd:<max_cmd_len$} {desc}"),
+                style,
+            )])
+        })
+        .collect();
+
+    let h = (app.bot_commands.len() as u16 + 2).min(area.height.saturating_sub(4));
+    let w = 50_u16.min(area.width.saturating_sub(4));
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let popup = Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, popup);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(" Bot Commands (Enter:select Esc:close) ");
+    let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup);
 }

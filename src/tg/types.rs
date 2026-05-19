@@ -1,3 +1,10 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatKind {
+    Private { user_id: i64 },
+    Group,
+    Channel,
+}
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Chat {
@@ -5,6 +12,7 @@ pub struct Chat {
     pub title: String,
     pub unread_count: i32,
     pub last_message: Option<String>,
+    pub kind: ChatKind,
 }
 
 #[derive(Debug, Clone)]

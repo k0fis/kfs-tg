@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 
 use crate::app::AppEvent;
 use crate::config::Config;
-use crate::tg::types::{Chat, Message};
+use crate::tg::types::{Chat, ChatKind, Message};
 
 pub async fn run(
     client_id: i32,
@@ -124,6 +124,22 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
                 if let Ok(tdlib_rs::enums::Chat::Chat(chat)) =
                     tdlib_rs::functions::get_chat(chat_id, client_id).await
                 {
+                    let kind = match &chat.r#type {
+                        tdlib_rs::enums::ChatType::Private(p) => {
+                            ChatKind::Private { user_id: p.user_id }
+                        }
+                        tdlib_rs::enums::ChatType::Secret(s) => {
+                            ChatKind::Private { user_id: s.user_id }
+                        }
+                        tdlib_rs::enums::ChatType::BasicGroup(_) => ChatKind::Group,
+                        tdlib_rs::enums::ChatType::Supergroup(sg) => {
+                            if sg.is_channel {
+                                ChatKind::Channel
+                            } else {
+                                ChatKind::Group
+                            }
+                        }
+                    };
                     chats.push(Chat {
                         id: chat.id,
                         title: chat.title,
@@ -132,6 +148,7 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
                             .last_message
                             .as_ref()
                             .map(|m| extract_text_content(&m.content)),
+                        kind,
                     });
                 }
             }
@@ -200,6 +217,21 @@ pub async fn submit_password(password: &str, client_id: i32) -> anyhow::Result<(
         .await
         .map_err(|e| anyhow::anyhow!("check_password: {} (code {})", e.message, e.code))?;
     Ok(())
+}
+
+pub async fn get_bot_commands(user_id: i64, client_id: i32) -> Vec<(String, String)> {
+    match tdlib_rs::functions::get_user_full_info(user_id, client_id).await {
+        Ok(tdlib_rs::enums::UserFullInfo::UserFullInfo(info)) => info
+            .bot_info
+            .map(|bi| {
+                bi.commands
+                    .into_iter()
+                    .map(|c| (c.command, c.description))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
 }
 
 fn convert_message(msg: &tdlib_rs::types::Message) -> Option<Message> {

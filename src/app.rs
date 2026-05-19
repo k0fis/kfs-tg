@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 use crate::config::Config;
 use crate::keys::{self, Action, Mode};
 use crate::tg;
-use crate::tg::types::{Chat, Message};
+use crate::tg::types::{Chat, ChatKind, Message};
 
 #[derive(Debug, Clone)]
 pub enum AppEvent {
@@ -15,6 +15,7 @@ pub enum AppEvent {
     ChatsLoaded(Vec<Chat>),
     MessagesLoaded(Vec<Message>),
     NewMessage(Message),
+    BotCommandsLoaded(Vec<(String, String)>),
     Error(String),
 }
 
@@ -54,6 +55,9 @@ pub struct App {
     pub client_id: i32,
     pub event_tx: mpsc::UnboundedSender<AppEvent>,
     pub help_visible: bool,
+    pub bot_commands: Vec<(String, String)>,
+    pub cmd_cursor: usize,
+    pub cmd_visible: bool,
 }
 
 impl App {
@@ -74,6 +78,9 @@ impl App {
             client_id,
             event_tx,
             help_visible: false,
+            bot_commands: Vec::new(),
+            cmd_cursor: 0,
+            cmd_visible: false,
         }
     }
 
@@ -81,6 +88,10 @@ impl App {
         if self.help_visible {
             self.help_visible = false;
             return false;
+        }
+
+        if self.cmd_visible {
+            return self.handle_cmd_key(key);
         }
 
         if self.screen == Screen::Login {
@@ -101,6 +112,7 @@ impl App {
             }
             Action::ExitInsert => self.mode = Mode::Normal,
             Action::Help => self.help_visible = true,
+            Action::Search => self.trigger_bot_commands(),
             Action::SendMessage => self.send_message(),
             Action::Char(c) if self.mode == Mode::Insert => {
                 self.input.insert(self.input_cursor, c);
@@ -237,6 +249,18 @@ impl App {
                     self.msg_cursor = self.messages.len().saturating_sub(1);
                 }
             }
+            AppEvent::BotCommandsLoaded(cmds) => {
+                if cmds.is_empty() {
+                    self.input = "/".to_string();
+                    self.input_cursor = 1;
+                    self.mode = Mode::Insert;
+                    self.panel = Panel::Messages;
+                } else {
+                    self.bot_commands = cmds;
+                    self.cmd_cursor = 0;
+                    self.cmd_visible = true;
+                }
+            }
             AppEvent::Error(e) => {
                 self.status = format!("Error: {e}");
             }
@@ -299,6 +323,54 @@ impl App {
                     tracing::error!("Send message error: {e}");
                 }
             });
+        }
+    }
+
+    fn handle_cmd_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down
+                if !self.bot_commands.is_empty() =>
+            {
+                self.cmd_cursor = (self.cmd_cursor + 1).min(self.bot_commands.len() - 1);
+            }
+            crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                self.cmd_cursor = self.cmd_cursor.saturating_sub(1);
+            }
+            crossterm::event::KeyCode::Enter => {
+                if let Some((cmd, _)) = self.bot_commands.get(self.cmd_cursor) {
+                    self.input = format!("/{cmd}");
+                    self.input_cursor = self.input.len();
+                    self.mode = Mode::Insert;
+                    self.panel = Panel::Messages;
+                }
+                self.cmd_visible = false;
+            }
+            crossterm::event::KeyCode::Esc | crossterm::event::KeyCode::Char('q') => {
+                self.cmd_visible = false;
+            }
+            _ => {}
+        }
+        false
+    }
+
+    fn trigger_bot_commands(&mut self) {
+        if let Some(chat) = self.chats.get(self.chat_cursor) {
+            match chat.kind {
+                ChatKind::Private { user_id } => {
+                    let client_id = self.client_id;
+                    let tx = self.event_tx.clone();
+                    tokio::spawn(async move {
+                        let cmds = tg::get_bot_commands(user_id, client_id).await;
+                        let _ = tx.send(AppEvent::BotCommandsLoaded(cmds));
+                    });
+                }
+                _ => {
+                    self.input = "/".to_string();
+                    self.input_cursor = 1;
+                    self.mode = Mode::Insert;
+                    self.panel = Panel::Messages;
+                }
+            }
         }
     }
 }
