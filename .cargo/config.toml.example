@@ -1,0 +1,6 @@
+# API credentials for builds.
+# Copy this to config.toml and fill in your values from https://my.telegram.org/apps
+# DO NOT commit config.toml — it's in .gitignore
+[env]
+KFS_TG_API_ID = "YOUR_API_ID"
+KFS_TG_API_HASH = "YOUR_API_HASH"

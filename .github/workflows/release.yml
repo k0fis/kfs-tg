@@ -48,6 +48,9 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build
+        env:
+          KFS_TG_API_ID: ${{ secrets.TG_API_ID }}
+          KFS_TG_API_HASH: ${{ secrets.TG_API_HASH }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename binary (Unix)

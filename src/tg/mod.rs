@@ -69,8 +69,8 @@ fn handle_auth_state(
     match state {
         AuthorizationState::WaitTdlibParameters => {
             let data_dir = Config::data_dir().to_string_lossy().to_string();
-            let api_id = config.general.api_id;
-            let api_hash = config.general.api_hash.clone();
+            let api_id = config.general.effective_api_id();
+            let api_hash = config.general.effective_api_hash();
 
             tokio::spawn(async move {
                 let _ = tdlib_rs::functions::set_tdlib_parameters(

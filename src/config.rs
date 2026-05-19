@@ -5,19 +5,30 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     #[serde(default)]
-    #[allow(dead_code)]
     pub general: GeneralConfig,
     #[serde(default)]
     pub ui: UiConfig,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
-#[allow(dead_code)]
 pub struct GeneralConfig {
     #[serde(default)]
-    pub api_id: i32,
+    pub api_id: Option<i32>,
     #[serde(default)]
-    pub api_hash: String,
+    pub api_hash: Option<String>,
+}
+
+impl GeneralConfig {
+    pub fn effective_api_id(&self) -> i32 {
+        self.api_id
+            .unwrap_or_else(|| env!("KFS_TG_API_ID").parse().unwrap_or(0))
+    }
+
+    pub fn effective_api_hash(&self) -> String {
+        self.api_hash
+            .clone()
+            .unwrap_or_else(|| String::from(env!("KFS_TG_API_HASH")))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
