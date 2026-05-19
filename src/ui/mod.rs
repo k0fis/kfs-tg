@@ -74,8 +74,9 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         Panel::Messages => "messages",
     };
     let text = format!(
-        " {} | {panel_str} | q:quit i:insert h/l:panel j/k:nav ?:help",
-        app.status
+        " {} | {panel_str} | q:quit i:insert h/l:panel j/k:nav ?:help | v{}",
+        app.status,
+        env!("CARGO_PKG_VERSION")
     );
     let bar = Paragraph::new(text).style(Style::default().fg(Color::DarkGray));
     frame.render_widget(bar, area);
