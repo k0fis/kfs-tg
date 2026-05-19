@@ -18,8 +18,8 @@ pub async fn run(
         receiver_loop(client_id, &cfg, &tx_recv);
     });
 
-    // Send initial request to start receiving updates
-    tdlib_rs::functions::set_log_verbosity_level(1, client_id)
+    // Suppress TDLib internal logging
+    tdlib_rs::functions::set_log_verbosity_level(0, client_id)
         .await
         .ok();
 

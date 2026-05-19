@@ -31,6 +31,10 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config = Config::load(cli.config.as_deref())?;
 
+    // Suppress TDLib stderr logging before creating client
+    #[cfg(unix)]
+    suppress_stderr();
+
     let client_id = tdlib_rs::create_client();
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
 
@@ -72,4 +76,15 @@ async fn main() -> anyhow::Result<()> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn suppress_stderr() {
+    use std::fs::File;
+    use std::os::unix::io::AsRawFd;
+    if let Ok(devnull) = File::open("/dev/null") {
+        unsafe {
+            libc::dup2(devnull.as_raw_fd(), 2);
+        }
+    }
 }
