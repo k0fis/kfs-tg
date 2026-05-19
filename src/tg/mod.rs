@@ -131,12 +131,14 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
                         tdlib_rs::enums::ChatType::Secret(s) => {
                             ChatKind::Private { user_id: s.user_id }
                         }
-                        tdlib_rs::enums::ChatType::BasicGroup(_) => ChatKind::Group,
+                        tdlib_rs::enums::ChatType::BasicGroup(g) => {
+                            ChatKind::BasicGroup { group_id: g.basic_group_id }
+                        }
                         tdlib_rs::enums::ChatType::Supergroup(sg) => {
                             if sg.is_channel {
                                 ChatKind::Channel
                             } else {
-                                ChatKind::Group
+                                ChatKind::Supergroup { group_id: sg.supergroup_id }
                             }
                         }
                     };
@@ -219,18 +221,43 @@ pub async fn submit_password(password: &str, client_id: i32) -> anyhow::Result<(
     Ok(())
 }
 
-pub async fn get_bot_commands(user_id: i64, client_id: i32) -> Vec<(String, String)> {
-    match tdlib_rs::functions::get_user_full_info(user_id, client_id).await {
-        Ok(tdlib_rs::enums::UserFullInfo::UserFullInfo(info)) => info
-            .bot_info
-            .map(|bi| {
-                bi.commands
+pub async fn get_bot_commands(kind: ChatKind, client_id: i32) -> Vec<(String, String)> {
+    match kind {
+        ChatKind::Private { user_id } => {
+            match tdlib_rs::functions::get_user_full_info(user_id, client_id).await {
+                Ok(tdlib_rs::enums::UserFullInfo::UserFullInfo(info)) => info
+                    .bot_info
+                    .map(|bi| {
+                        bi.commands
+                            .into_iter()
+                            .map(|c| (c.command, c.description))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                _ => Vec::new(),
+            }
+        }
+        ChatKind::BasicGroup { group_id } => {
+            match tdlib_rs::functions::get_basic_group_full_info(group_id, client_id).await {
+                Ok(tdlib_rs::enums::BasicGroupFullInfo::BasicGroupFullInfo(info)) => info
+                    .bot_commands
                     .into_iter()
-                    .map(|c| (c.command, c.description))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        _ => Vec::new(),
+                    .flat_map(|bc| bc.commands.into_iter().map(|c| (c.command, c.description)))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        }
+        ChatKind::Supergroup { group_id } => {
+            match tdlib_rs::functions::get_supergroup_full_info(group_id, client_id).await {
+                Ok(tdlib_rs::enums::SupergroupFullInfo::SupergroupFullInfo(info)) => info
+                    .bot_commands
+                    .into_iter()
+                    .flat_map(|bc| bc.commands.into_iter().map(|c| (c.command, c.description)))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        }
+        ChatKind::Channel => Vec::new(),
     }
 }
 

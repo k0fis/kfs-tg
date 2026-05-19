@@ -355,22 +355,20 @@ impl App {
 
     fn trigger_bot_commands(&mut self) {
         if let Some(chat) = self.chats.get(self.chat_cursor) {
-            match chat.kind {
-                ChatKind::Private { user_id } => {
-                    let client_id = self.client_id;
-                    let tx = self.event_tx.clone();
-                    tokio::spawn(async move {
-                        let cmds = tg::get_bot_commands(user_id, client_id).await;
-                        let _ = tx.send(AppEvent::BotCommandsLoaded(cmds));
-                    });
-                }
-                _ => {
-                    self.input = "/".to_string();
-                    self.input_cursor = 1;
-                    self.mode = Mode::Insert;
-                    self.panel = Panel::Messages;
-                }
+            let kind = chat.kind;
+            if kind == ChatKind::Channel {
+                self.input = "/".to_string();
+                self.input_cursor = 1;
+                self.mode = Mode::Insert;
+                self.panel = Panel::Messages;
+                return;
             }
+            let client_id = self.client_id;
+            let tx = self.event_tx.clone();
+            tokio::spawn(async move {
+                let cmds = tg::get_bot_commands(kind, client_id).await;
+                let _ = tx.send(AppEvent::BotCommandsLoaded(cmds));
+            });
         }
     }
 }

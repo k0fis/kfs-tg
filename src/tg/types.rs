@@ -1,7 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChatKind {
     Private { user_id: i64 },
-    Group,
+    BasicGroup { group_id: i64 },
+    Supergroup { group_id: i64 },
     Channel,
 }
 
