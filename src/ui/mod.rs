@@ -59,10 +59,16 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
         Style::default().fg(Color::DarkGray)
     };
 
+    let title = if let Some((_, ref preview)) = app.reply_to {
+        format!(" [{mode_str}] reply: {preview} ")
+    } else {
+        format!(" [{mode_str}] ")
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
-        .title(format!(" [{mode_str}] "));
+        .title(title);
 
     let paragraph = Paragraph::new(app.input.as_str()).block(block);
     frame.render_widget(paragraph, area);

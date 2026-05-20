@@ -200,7 +200,12 @@ pub async fn load_chat_messages(
     }
 }
 
-pub async fn send_text_message(chat_id: i64, text: &str, client_id: i32) -> anyhow::Result<()> {
+pub async fn send_text_message(
+    chat_id: i64,
+    text: &str,
+    reply_to_id: Option<i64>,
+    client_id: i32,
+) -> anyhow::Result<()> {
     let content =
         tdlib_rs::enums::InputMessageContent::InputMessageText(tdlib_rs::types::InputMessageText {
             text: tdlib_rs::types::FormattedText {
@@ -211,7 +216,17 @@ pub async fn send_text_message(chat_id: i64, text: &str, client_id: i32) -> anyh
             clear_draft: true,
         });
 
-    tdlib_rs::functions::send_message(chat_id, None, None, None, content, client_id)
+    let reply_to = reply_to_id.map(|msg_id| {
+        tdlib_rs::enums::InputMessageReplyTo::Message(
+            tdlib_rs::types::InputMessageReplyToMessage {
+                message_id: msg_id,
+                quote: None,
+                checklist_task_id: 0,
+            },
+        )
+    });
+
+    tdlib_rs::functions::send_message(chat_id, None, reply_to, None, content, client_id)
         .await
         .map_err(|e| anyhow::anyhow!("send_message: {} (code {})", e.message, e.code))?;
     Ok(())

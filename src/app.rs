@@ -58,6 +58,7 @@ pub struct App {
     pub bot_commands: Vec<(String, String)>,
     pub cmd_cursor: usize,
     pub cmd_visible: bool,
+    pub reply_to: Option<(i64, String)>,
 }
 
 impl App {
@@ -81,6 +82,7 @@ impl App {
             bot_commands: Vec::new(),
             cmd_cursor: 0,
             cmd_visible: false,
+            reply_to: None,
         }
     }
 
@@ -110,8 +112,12 @@ impl App {
                 self.mode = Mode::Insert;
                 self.panel = Panel::Messages;
             }
-            Action::ExitInsert => self.mode = Mode::Normal,
+            Action::ExitInsert => {
+                self.mode = Mode::Normal;
+                self.reply_to = None;
+            }
             Action::Help => self.help_visible = true,
+            Action::Reply => self.start_reply(),
             Action::Search => self.trigger_bot_commands(),
             Action::SendMessage => self.send_message(),
             Action::Char(c) if self.mode == Mode::Insert => {
@@ -313,16 +319,35 @@ impl App {
             let chat_id = chat.id;
             let client_id = self.client_id;
             let text = self.input.clone();
+            let reply_to_id = self.reply_to.as_ref().map(|(id, _)| *id);
 
             self.input.clear();
             self.input_cursor = 0;
             self.mode = Mode::Normal;
+            self.reply_to = None;
 
             tokio::spawn(async move {
-                if let Err(e) = tg::send_text_message(chat_id, &text, client_id).await {
+                if let Err(e) =
+                    tg::send_text_message(chat_id, &text, reply_to_id, client_id).await
+                {
                     tracing::error!("Send message error: {e}");
                 }
             });
+        }
+    }
+
+    fn start_reply(&mut self) {
+        if self.panel == Panel::Messages
+            && let Some(msg) = self.messages.get(self.msg_cursor)
+        {
+            let preview = if msg.text.len() > 30 {
+                format!("{}...", &msg.text[..30])
+            } else {
+                msg.text.clone()
+            };
+            self.reply_to = Some((msg.id, preview));
+            self.mode = Mode::Insert;
+            self.panel = Panel::Messages;
         }
     }
 
