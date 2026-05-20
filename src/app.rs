@@ -1,4 +1,5 @@
 use crossterm::event::KeyEvent;
+use ratatui::widgets::ListState;
 use tokio::sync::mpsc;
 
 use crate::config::Config;
@@ -78,6 +79,8 @@ pub struct App {
     pub msg_search_active: bool,
     pub typing_status: String,
     pub loading_older: bool,
+    pub msg_list_state: ListState,
+    pub unread_from_id: Option<i64>,
 }
 
 impl App {
@@ -114,6 +117,8 @@ impl App {
             msg_search_active: false,
             typing_status: String::new(),
             loading_older: false,
+            msg_list_state: ListState::default(),
+            unread_from_id: None,
         }
     }
 
@@ -398,6 +403,7 @@ impl App {
                     let count = older.len();
                     let mut combined = older;
                     combined.append(&mut self.messages);
+                    combined.sort_by_key(|m| m.timestamp);
                     self.messages = combined;
                     self.msg_cursor += count;
                 }
@@ -470,8 +476,14 @@ impl App {
             self.panel = Panel::Messages;
             self.messages.clear();
             self.msg_cursor = 0;
+            self.msg_list_state = ListState::default();
             self.loading_older = false;
             self.status = "Loading messages...".to_string();
+            self.unread_from_id = if chat.unread_count > 0 {
+                Some(chat.last_read_inbox_message_id)
+            } else {
+                None
+            };
 
             tokio::spawn(async move {
                 tg::load_chat_messages(chat_id, client_id, &tx).await;

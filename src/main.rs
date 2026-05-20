@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     let mut app = App::new(config, client_id, event_tx);
 
     loop {
-        terminal.draw(|frame| ui::draw(frame, &app))?;
+        terminal.draw(|frame| ui::draw(frame, &mut app))?;
 
         if event::poll(Duration::from_millis(50))?
             && let Event::Key(key) = event::read()?

@@ -1,9 +1,9 @@
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
+use ratatui::widgets::{Block, Borders, List, ListItem};
 
 use crate::app::{App, Panel};
 
-pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
+pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     let border_style = if app.panel == Panel::Messages {
         Style::default().fg(Color::Yellow)
     } else {
@@ -26,25 +26,52 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
 
     let matches = app.msg_search_matches();
 
-    let items: Vec<ListItem> = app
-        .messages
-        .iter()
-        .enumerate()
-        .map(|(i, msg)| {
-            let prefix = if msg.is_outgoing {
-                "You"
-            } else {
-                &msg.sender_name
-            };
-            let text = format!("[{}] {prefix}: {}", format_ts(msg.timestamp), msg.text);
-            let style = if matches.contains(&i) {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default()
-            };
-            ListItem::new(text).style(style)
-        })
-        .collect();
+    let mut items: Vec<ListItem> = Vec::new();
+    let mut msg_to_display: Vec<usize> = Vec::new();
+    let mut prev_date: Option<String> = None;
+    let mut unread_inserted = false;
+
+    for (i, msg) in app.messages.iter().enumerate() {
+        let date = format_date(msg.timestamp);
+
+        if prev_date.as_ref() != Some(&date) {
+            items.push(
+                ListItem::new(format!("--- {date} ---"))
+                    .style(Style::default().fg(Color::DarkGray)),
+            );
+            prev_date = Some(date);
+        }
+
+        if !unread_inserted
+            && let Some(last_read_id) = app.unread_from_id
+            && msg.id > last_read_id
+            && !msg.is_outgoing
+        {
+            items.push(ListItem::new("── unread ──").style(Style::default().fg(Color::Red)));
+            unread_inserted = true;
+        }
+
+        msg_to_display.push(items.len());
+
+        let prefix = if msg.is_outgoing {
+            "You"
+        } else {
+            &msg.sender_name
+        };
+        let text = format!("[{}] {prefix}: {}", format_ts(msg.timestamp), msg.text);
+        let style = if matches.contains(&i) {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        };
+        items.push(ListItem::new(text).style(style));
+    }
+
+    let display_idx = if !msg_to_display.is_empty() {
+        Some(msg_to_display[app.msg_cursor.min(msg_to_display.len().saturating_sub(1))])
+    } else {
+        None
+    };
 
     let list = List::new(items)
         .block(
@@ -55,11 +82,8 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         )
         .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));
 
-    let mut state = ListState::default();
-    if !app.messages.is_empty() {
-        state.select(Some(app.msg_cursor));
-    }
-    frame.render_stateful_widget(list, area, &mut state);
+    app.msg_list_state.select(display_idx);
+    frame.render_stateful_widget(list, area, &mut app.msg_list_state);
 }
 
 fn format_ts(ts: i64) -> String {
@@ -73,5 +97,24 @@ fn format_ts(ts: i64) -> String {
     {
         let secs = ts % 86400;
         format!("{:02}:{:02}", secs / 3600, (secs % 3600) / 60)
+    }
+}
+
+fn format_date(ts: i64) -> String {
+    #[cfg(unix)]
+    {
+        let mut tm = unsafe { std::mem::zeroed::<libc::tm>() };
+        unsafe { libc::localtime_r(&ts as *const i64, &mut tm) };
+        format!(
+            "{:04}-{:02}-{:02}",
+            tm.tm_year + 1900,
+            tm.tm_mon + 1,
+            tm.tm_mday
+        )
+    }
+    #[cfg(not(unix))]
+    {
+        let days = ts / 86400;
+        format!("day-{days}")
     }
 }

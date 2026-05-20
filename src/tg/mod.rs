@@ -213,6 +213,7 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
                             .last_message
                             .as_ref()
                             .map(|m| extract_text_content(&m.content)),
+                        last_read_inbox_message_id: chat.last_read_inbox_message_id,
                         kind,
                     });
                 }
@@ -277,6 +278,7 @@ pub async fn load_chats_for_folder(
                             .last_message
                             .as_ref()
                             .map(|m| extract_text_content(&m.content)),
+                        last_read_inbox_message_id: chat.last_read_inbox_message_id,
                         kind,
                     });
                 }
@@ -305,6 +307,7 @@ pub async fn load_chat_messages(
             for msg in &mut messages {
                 resolve_sender_name(msg, client_id).await;
             }
+            messages.sort_by_key(|m| m.timestamp);
             // Mark messages as read
             let msg_ids: Vec<i64> = messages.iter().map(|m| m.id).collect();
             if !msg_ids.is_empty() {
@@ -339,6 +342,7 @@ pub async fn load_older_messages(
             for msg in &mut messages {
                 resolve_sender_name(msg, client_id).await;
             }
+            messages.sort_by_key(|m| m.timestamp);
             let _ = tx.send(AppEvent::OlderMessagesLoaded(messages));
         }
         _ => {

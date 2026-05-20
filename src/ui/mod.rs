@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use crate::app::{App, Panel, Screen};
 use crate::keys::Mode;
 
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame, app: &mut App) {
     let input_lines = if app.input.is_empty() {
         1
     } else {
@@ -44,7 +44,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     }
 }
 
-fn draw_main(frame: &mut Frame, app: &App, area: Rect) {
+fn draw_main(frame: &mut Frame, app: &mut App, area: Rect) {
     let h_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([

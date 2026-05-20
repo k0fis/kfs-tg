@@ -13,6 +13,7 @@ pub struct Chat {
     pub title: String,
     pub unread_count: i32,
     pub last_message: Option<String>,
+    pub last_read_inbox_message_id: i64,
     pub kind: ChatKind,
 }
 
