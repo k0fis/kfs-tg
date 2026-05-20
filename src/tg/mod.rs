@@ -184,6 +184,14 @@ pub async fn load_chat_messages(
             for msg in &mut messages {
                 resolve_sender_name(msg, client_id).await;
             }
+            // Mark messages as read
+            let msg_ids: Vec<i64> = messages.iter().map(|m| m.id).collect();
+            if !msg_ids.is_empty() {
+                let _ = tdlib_rs::functions::view_messages(
+                    chat_id, msg_ids, None, true, client_id,
+                )
+                .await;
+            }
             let _ = tx.send(AppEvent::MessagesLoaded(messages));
         }
         _ => {
