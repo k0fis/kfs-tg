@@ -94,10 +94,7 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
             .unwrap_or(text_before_cursor)
             .chars()
             .count() as u16;
-        frame.set_cursor_position((
-            area.x + 1 + cursor_col,
-            area.y + 1 + cursor_line as u16,
-        ));
+        frame.set_cursor_position((area.x + 1 + cursor_col, area.y + 1 + cursor_line as u16));
     }
 }
 
@@ -228,10 +225,7 @@ fn draw_forward_picker(frame: &mut Frame, app: &App, area: Rect) {
             } else {
                 Style::default()
             };
-            Line::from(vec![Span::styled(
-                format!("{prefix}{}", chat.title),
-                style,
-            )])
+            Line::from(vec![Span::styled(format!("{prefix}{}", chat.title), style)])
         })
         .collect();
 

@@ -60,7 +60,11 @@ fn handle_update(
         }
         Update::MessageContent(upd) => {
             let new_text = extract_text_content(&upd.new_content);
-            let _ = tx.send(AppEvent::MessageEdited(upd.chat_id, upd.message_id, new_text));
+            let _ = tx.send(AppEvent::MessageEdited(
+                upd.chat_id,
+                upd.message_id,
+                new_text,
+            ));
         }
         Update::DeleteMessages(upd) => {
             if upd.from_cache {
@@ -88,15 +92,9 @@ fn handle_update(
             let action_str = match upd.action {
                 tdlib_rs::enums::ChatAction::Typing => "typing...".to_string(),
                 tdlib_rs::enums::ChatAction::RecordingVideo => "recording video...".to_string(),
-                tdlib_rs::enums::ChatAction::RecordingVoiceNote => {
-                    "recording voice...".to_string()
-                }
-                tdlib_rs::enums::ChatAction::UploadingPhoto(_) => {
-                    "uploading photo...".to_string()
-                }
-                tdlib_rs::enums::ChatAction::UploadingVideo(_) => {
-                    "uploading video...".to_string()
-                }
+                tdlib_rs::enums::ChatAction::RecordingVoiceNote => "recording voice...".to_string(),
+                tdlib_rs::enums::ChatAction::UploadingPhoto(_) => "uploading photo...".to_string(),
+                tdlib_rs::enums::ChatAction::UploadingVideo(_) => "uploading video...".to_string(),
                 tdlib_rs::enums::ChatAction::UploadingDocument(_) => {
                     "uploading file...".to_string()
                 }
@@ -241,9 +239,7 @@ pub async fn load_chats_for_folder(
     tx: &mpsc::UnboundedSender<AppEvent>,
 ) {
     let chat_list = folder_id.map(|id| {
-        tdlib_rs::enums::ChatList::Folder(tdlib_rs::types::ChatListFolder {
-            chat_folder_id: id,
-        })
+        tdlib_rs::enums::ChatList::Folder(tdlib_rs::types::ChatListFolder { chat_folder_id: id })
     });
     let _ = tdlib_rs::functions::load_chats(chat_list.clone(), 30, client_id).await;
     match tdlib_rs::functions::get_chats(chat_list, 30, client_id).await {
@@ -312,10 +308,8 @@ pub async fn load_chat_messages(
             // Mark messages as read
             let msg_ids: Vec<i64> = messages.iter().map(|m| m.id).collect();
             if !msg_ids.is_empty() {
-                let _ = tdlib_rs::functions::view_messages(
-                    chat_id, msg_ids, None, true, client_id,
-                )
-                .await;
+                let _ = tdlib_rs::functions::view_messages(chat_id, msg_ids, None, true, client_id)
+                    .await;
             }
             let _ = tx.send(AppEvent::MessagesLoaded(messages));
         }
@@ -370,13 +364,11 @@ pub async fn send_text_message(
         });
 
     let reply_to = reply_to_id.map(|msg_id| {
-        tdlib_rs::enums::InputMessageReplyTo::Message(
-            tdlib_rs::types::InputMessageReplyToMessage {
-                message_id: msg_id,
-                quote: None,
-                checklist_task_id: 0,
-            },
-        )
+        tdlib_rs::enums::InputMessageReplyTo::Message(tdlib_rs::types::InputMessageReplyToMessage {
+            message_id: msg_id,
+            quote: None,
+            checklist_task_id: 0,
+        })
     });
 
     tdlib_rs::functions::send_message(chat_id, None, reply_to, None, content, client_id)
@@ -532,11 +524,9 @@ fn extract_text_content(content: &tdlib_rs::enums::MessageContent) -> String {
 
 fn extract_file_id(content: &tdlib_rs::enums::MessageContent) -> Option<i32> {
     match content {
-        tdlib_rs::enums::MessageContent::MessagePhoto(p) => p
-            .photo
-            .sizes
-            .last()
-            .map(|s| s.photo.id),
+        tdlib_rs::enums::MessageContent::MessagePhoto(p) => {
+            p.photo.sizes.last().map(|s| s.photo.id)
+        }
         tdlib_rs::enums::MessageContent::MessageVideo(v) => Some(v.video.video.id),
         tdlib_rs::enums::MessageContent::MessageDocument(d) => Some(d.document.document.id),
         tdlib_rs::enums::MessageContent::MessageVoiceNote(v) => Some(v.voice_note.voice.id),
@@ -559,9 +549,7 @@ pub async fn download_and_open(file_id: i32, client_id: i32) -> anyhow::Result<(
     }
     #[cfg(target_os = "macos")]
     {
-        tokio::process::Command::new("open")
-            .arg(&path)
-            .spawn()?;
+        tokio::process::Command::new("open").arg(&path).spawn()?;
     }
     #[cfg(target_os = "linux")]
     {

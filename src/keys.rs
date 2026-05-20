@@ -59,7 +59,9 @@ fn map_normal(key: KeyEvent) -> Action {
         KeyCode::Char('/') => Action::Search,
         KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Refresh,
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SearchChats,
-        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SearchMessages,
+        KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            Action::SearchMessages
+        }
         KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::PageDown,
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::PageUp,
         KeyCode::Char('r') => Action::Reply,

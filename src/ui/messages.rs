@@ -36,11 +36,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
             } else {
                 &msg.sender_name
             };
-            let text = format!(
-                "[{}] {prefix}: {}",
-                format_ts(msg.timestamp),
-                msg.text
-            );
+            let text = format!("[{}] {prefix}: {}", format_ts(msg.timestamp), msg.text);
             let style = if matches.contains(&i) {
                 Style::default().fg(Color::Yellow)
             } else {

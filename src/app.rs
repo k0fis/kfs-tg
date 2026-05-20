@@ -231,12 +231,10 @@ impl App {
             },
             Action::PageDown => match self.panel {
                 Panel::ChatList if !self.chats.is_empty() => {
-                    self.chat_cursor =
-                        (self.chat_cursor + 10).min(self.chats.len() - 1);
+                    self.chat_cursor = (self.chat_cursor + 10).min(self.chats.len() - 1);
                 }
                 Panel::Messages if !self.messages.is_empty() => {
-                    self.msg_cursor =
-                        (self.msg_cursor + 10).min(self.messages.len() - 1);
+                    self.msg_cursor = (self.msg_cursor + 10).min(self.messages.len() - 1);
                 }
                 _ => {}
             },
@@ -355,8 +353,7 @@ impl App {
                 }
             }
             AppEvent::NewMessage(msg) => {
-                let current_chat_id =
-                    self.chats.get(self.chat_cursor).map(|c| c.id);
+                let current_chat_id = self.chats.get(self.chat_cursor).map(|c| c.id);
                 if current_chat_id == Some(msg.chat_id) {
                     self.messages.push(msg);
                     self.msg_cursor = self.messages.len().saturating_sub(1);
@@ -392,9 +389,7 @@ impl App {
                     && chat_id == chat.id
                 {
                     self.messages.retain(|m| !msg_ids.contains(&m.id));
-                    self.msg_cursor = self
-                        .msg_cursor
-                        .min(self.messages.len().saturating_sub(1));
+                    self.msg_cursor = self.msg_cursor.min(self.messages.len().saturating_sub(1));
                 }
             }
             AppEvent::OlderMessagesLoaded(older) => {
@@ -550,9 +545,7 @@ impl App {
 
             if let Some(msg_id) = self.edit_msg.take() {
                 tokio::spawn(async move {
-                    if let Err(e) =
-                        tg::edit_message_text(chat_id, msg_id, &text, client_id).await
-                    {
+                    if let Err(e) = tg::edit_message_text(chat_id, msg_id, &text, client_id).await {
                         tracing::error!("Edit message error: {e}");
                     }
                 });
@@ -639,9 +632,7 @@ impl App {
                     .await;
                 });
                 self.messages.retain(|m| m.id != msg_id);
-                self.msg_cursor = self.msg_cursor.min(
-                    self.messages.len().saturating_sub(1),
-                );
+                self.msg_cursor = self.msg_cursor.min(self.messages.len().saturating_sub(1));
                 self.status = "Message deleted".to_string();
             }
         } else {
@@ -696,8 +687,7 @@ impl App {
             crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down
                 if !self.chats.is_empty() =>
             {
-                self.forward_cursor =
-                    (self.forward_cursor + 1).min(self.chats.len() - 1);
+                self.forward_cursor = (self.forward_cursor + 1).min(self.chats.len() - 1);
             }
             crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
                 self.forward_cursor = self.forward_cursor.saturating_sub(1);
@@ -839,8 +829,7 @@ impl App {
                 self.msg_search_active = false;
                 self.msg_search_query.clear();
             }
-            crossterm::event::KeyCode::Enter
-            | crossterm::event::KeyCode::Char('n') => {
+            crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Char('n') => {
                 self.msg_search_next();
             }
             crossterm::event::KeyCode::Char('N') => {
