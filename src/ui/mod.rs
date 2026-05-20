@@ -106,8 +106,18 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
         Panel::ChatList => "chats",
         Panel::Messages => "messages",
     };
+    let folder_str = if app.folders.is_empty() {
+        String::new()
+    } else {
+        let active = app
+            .active_folder
+            .and_then(|id| app.folders.iter().position(|f| f.0 == id))
+            .map(|i| format!("[{}]", app.folders[i].1))
+            .unwrap_or_else(|| "[All]".to_string());
+        format!(" {active}")
+    };
     let text = format!(
-        " {} | {panel_str} | q:quit i:insert h/l:panel j/k:nav ?:help | v{}",
+        " {} |{folder_str} {panel_str} | ?:help | v{}",
         app.status,
         env!("CARGO_PKG_VERSION")
     );

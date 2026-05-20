@@ -105,6 +105,14 @@ fn handle_update(
             };
             let _ = tx.send(AppEvent::ChatAction(upd.chat_id, action_str));
         }
+        Update::ChatFolders(upd) => {
+            let folders: Vec<(i32, String)> = upd
+                .chat_folders
+                .into_iter()
+                .map(|f| (f.id, f.name.text.text))
+                .collect();
+            let _ = tx.send(AppEvent::FoldersLoaded(folders));
+        }
         _ => {}
     }
 }
@@ -156,8 +164,12 @@ fn handle_auth_state(
         AuthorizationState::Ready => {
             let _ = tx.send(AppEvent::AuthStateReady);
             let tx2 = tx.clone();
+            let tx3 = tx.clone();
             tokio::spawn(async move {
                 load_chats(client_id, &tx2).await;
+            });
+            tokio::spawn(async move {
+                load_folders(client_id, &tx3).await;
             });
         }
         _ => {}
@@ -217,6 +229,68 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
 
 pub async fn refresh_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
     load_chats(client_id, tx).await;
+}
+
+pub async fn load_folders(_client_id: i32, _tx: &mpsc::UnboundedSender<AppEvent>) {
+    // Folders are loaded via UpdateChatFolders update, not explicit API call
+}
+
+pub async fn load_chats_for_folder(
+    folder_id: Option<i32>,
+    client_id: i32,
+    tx: &mpsc::UnboundedSender<AppEvent>,
+) {
+    let chat_list = folder_id.map(|id| {
+        tdlib_rs::enums::ChatList::Folder(tdlib_rs::types::ChatListFolder {
+            chat_folder_id: id,
+        })
+    });
+    let _ = tdlib_rs::functions::load_chats(chat_list.clone(), 30, client_id).await;
+    match tdlib_rs::functions::get_chats(chat_list, 30, client_id).await {
+        Ok(tdlib_rs::enums::Chats::Chats(chats_obj)) => {
+            let mut chats = Vec::new();
+            for chat_id in chats_obj.chat_ids {
+                if let Ok(tdlib_rs::enums::Chat::Chat(chat)) =
+                    tdlib_rs::functions::get_chat(chat_id, client_id).await
+                {
+                    let kind = match &chat.r#type {
+                        tdlib_rs::enums::ChatType::Private(p) => {
+                            ChatKind::Private { user_id: p.user_id }
+                        }
+                        tdlib_rs::enums::ChatType::Secret(s) => {
+                            ChatKind::Private { user_id: s.user_id }
+                        }
+                        tdlib_rs::enums::ChatType::BasicGroup(g) => ChatKind::BasicGroup {
+                            group_id: g.basic_group_id,
+                        },
+                        tdlib_rs::enums::ChatType::Supergroup(sg) => {
+                            if sg.is_channel {
+                                ChatKind::Channel
+                            } else {
+                                ChatKind::Supergroup {
+                                    group_id: sg.supergroup_id,
+                                }
+                            }
+                        }
+                    };
+                    chats.push(Chat {
+                        id: chat.id,
+                        title: chat.title,
+                        unread_count: chat.unread_count,
+                        last_message: chat
+                            .last_message
+                            .as_ref()
+                            .map(|m| extract_text_content(&m.content)),
+                        kind,
+                    });
+                }
+            }
+            let _ = tx.send(AppEvent::ChatsLoaded(chats));
+        }
+        _ => {
+            let _ = tx.send(AppEvent::Error("Failed to load folder chats".to_string()));
+        }
+    }
 }
 
 pub async fn load_chat_messages(

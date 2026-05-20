@@ -13,6 +13,7 @@ pub enum AppEvent {
     AuthStatePassword,
     AuthStateReady,
     ChatsLoaded(Vec<Chat>),
+    FoldersLoaded(Vec<(i32, String)>),
     MessagesLoaded(Vec<Message>),
     NewMessage(Message),
     MessageEdited(i64, i64, String),
@@ -55,6 +56,8 @@ pub struct App {
     pub input_cursor: usize,
     pub chats: Vec<Chat>,
     pub messages: Vec<Message>,
+    pub folders: Vec<(i32, String)>,
+    pub active_folder: Option<i32>,
     pub chat_cursor: usize,
     pub msg_cursor: usize,
     pub status: String,
@@ -89,6 +92,8 @@ impl App {
             input_cursor: 0,
             chats: Vec::new(),
             messages: Vec::new(),
+            folders: Vec::new(),
+            active_folder: None,
             chat_cursor: 0,
             msg_cursor: 0,
             status: "Connecting...".to_string(),
@@ -243,6 +248,7 @@ impl App {
                     self.msg_cursor = self.msg_cursor.saturating_sub(10);
                 }
             },
+            Action::SwitchFolder(n) => self.switch_folder(n),
             _ => {}
         }
         false
@@ -336,7 +342,11 @@ impl App {
             }
             AppEvent::ChatsLoaded(chats) => {
                 self.chats = chats;
+                self.chat_cursor = 0;
                 self.status = format!("{} chats loaded", self.chats.len());
+            }
+            AppEvent::FoldersLoaded(folders) => {
+                self.folders = folders;
             }
             AppEvent::MessagesLoaded(msgs) => {
                 self.messages = msgs;
@@ -497,6 +507,33 @@ impl App {
         tokio::spawn(async move {
             tg::refresh_chats(client_id, &tx).await;
         });
+    }
+
+    fn switch_folder(&mut self, n: u8) {
+        if n == 0 {
+            self.active_folder = None;
+            self.chat_cursor = 0;
+            let client_id = self.client_id;
+            let tx = self.event_tx.clone();
+            self.status = "All chats...".to_string();
+            tokio::spawn(async move {
+                tg::load_chats_for_folder(None, client_id, &tx).await;
+            });
+        } else {
+            let idx = (n - 1) as usize;
+            if let Some((folder_id, folder_name)) = self.folders.get(idx) {
+                let fid = *folder_id;
+                let fname = folder_name.clone();
+                self.active_folder = Some(fid);
+                self.chat_cursor = 0;
+                let client_id = self.client_id;
+                let tx = self.event_tx.clone();
+                self.status = format!("Folder: {fname}...");
+                tokio::spawn(async move {
+                    tg::load_chats_for_folder(Some(fid), client_id, &tx).await;
+                });
+            }
+        }
     }
 
     fn send_message(&mut self) {

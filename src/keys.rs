@@ -26,6 +26,7 @@ pub enum Action {
     OpenMedia,
     SearchChats,
     SearchMessages,
+    SwitchFolder(u8),
     GoTop,
     GoBottom,
     PageDown,
@@ -69,6 +70,7 @@ fn map_normal(key: KeyEvent) -> Action {
         KeyCode::Char('g') => Action::GoTop,
         KeyCode::Char('G') => Action::GoBottom,
         KeyCode::Char('?') => Action::Help,
+        KeyCode::Char(c @ '0'..='9') => Action::SwitchFolder(c as u8 - b'0'),
         _ => Action::None,
     }
 }
