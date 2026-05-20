@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    Ok(())
+    std::process::exit(0);
 }
 
 #[cfg(unix)]
