@@ -50,8 +50,15 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn format_ts(ts: i64) -> String {
-    let secs = ts % 86400;
-    let h = secs / 3600;
-    let m = (secs % 3600) / 60;
-    format!("{h:02}:{m:02}")
+    #[cfg(unix)]
+    {
+        let mut tm = unsafe { std::mem::zeroed::<libc::tm>() };
+        unsafe { libc::localtime_r(&ts as *const i64, &mut tm) };
+        format!("{:02}:{:02}", tm.tm_hour, tm.tm_min)
+    }
+    #[cfg(not(unix))]
+    {
+        let secs = ts % 86400;
+        format!("{:02}:{:02}", secs / 3600, (secs % 3600) / 60)
+    }
 }
