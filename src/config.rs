@@ -57,7 +57,7 @@ impl Default for UiConfig {
 }
 
 fn default_chat_list_width() -> u16 {
-    25
+    20
 }
 fn default_true() -> bool {
     true

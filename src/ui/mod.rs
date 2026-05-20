@@ -9,10 +9,17 @@ use crate::app::{App, Panel, Screen};
 use crate::keys::Mode;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
-    let input_lines = if app.input.is_empty() {
-        1
+    let inner_width = frame.area().width.saturating_sub(2) as usize;
+    let input_lines = if app.input.is_empty() || inner_width == 0 {
+        1u16
     } else {
-        app.input.split('\n').count() as u16
+        app.input
+            .split('\n')
+            .map(|line| {
+                let chars = line.chars().count();
+                1 + (chars / inner_width) as u16
+            })
+            .sum()
     };
     let input_height = (input_lines + 2).min(7);
 
@@ -82,19 +89,30 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(border_style)
         .title(title);
 
-    let paragraph = Paragraph::new(app.input.as_str()).block(block);
+    let paragraph = Paragraph::new(app.input.as_str())
+        .block(block)
+        .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, area);
 
     if app.mode == Mode::Insert {
+        let inner_width = area.width.saturating_sub(2) as usize;
         let text_before_cursor = &app.input[..app.input_cursor];
-        let cursor_line = text_before_cursor.matches('\n').count();
-        let cursor_col = text_before_cursor
-            .rsplit('\n')
-            .next()
-            .unwrap_or(text_before_cursor)
-            .chars()
-            .count() as u16;
-        frame.set_cursor_position((area.x + 1 + cursor_col, area.y + 1 + cursor_line as u16));
+        let mut visual_line: u16 = 0;
+        let mut visual_col: u16 = 0;
+
+        for line in text_before_cursor.split('\n') {
+            let line_chars = line.chars().count();
+            let wrap_lines = inner_width
+                .checked_div(1)
+                .map(|_| line_chars / inner_width.max(1))
+                .unwrap_or(0);
+            visual_line += wrap_lines as u16;
+            visual_col = (line_chars % inner_width.max(1)) as u16;
+        }
+        let newlines = text_before_cursor.matches('\n').count() as u16;
+        visual_line += newlines;
+
+        frame.set_cursor_position((area.x + 1 + visual_col, area.y + 1 + visual_line));
     }
 }
 
