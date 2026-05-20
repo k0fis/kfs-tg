@@ -59,6 +59,7 @@ pub struct App {
     pub cmd_cursor: usize,
     pub cmd_visible: bool,
     pub reply_to: Option<(i64, String)>,
+    pub confirm_delete: Option<i64>,
 }
 
 impl App {
@@ -83,6 +84,7 @@ impl App {
             cmd_cursor: 0,
             cmd_visible: false,
             reply_to: None,
+            confirm_delete: None,
         }
     }
 
@@ -90,6 +92,10 @@ impl App {
         if self.help_visible {
             self.help_visible = false;
             return false;
+        }
+
+        if let Some(msg_id) = self.confirm_delete {
+            return self.handle_delete_confirm(key, msg_id);
         }
 
         if self.cmd_visible {
@@ -118,6 +124,7 @@ impl App {
             }
             Action::Help => self.help_visible = true,
             Action::Reply => self.start_reply(),
+            Action::Delete => self.start_delete(),
             Action::Search => self.trigger_bot_commands(),
             Action::SendMessage => self.send_message(),
             Action::Char(c) if self.mode == Mode::Insert => {
@@ -349,6 +356,43 @@ impl App {
             self.mode = Mode::Insert;
             self.panel = Panel::Messages;
         }
+    }
+
+    fn start_delete(&mut self) {
+        if self.panel == Panel::Messages
+            && let Some(msg) = self.messages.get(self.msg_cursor)
+            && msg.is_outgoing
+        {
+            self.confirm_delete = Some(msg.id);
+            self.status = "Delete this message? (y/n)".to_string();
+        }
+    }
+
+    fn handle_delete_confirm(&mut self, key: KeyEvent, msg_id: i64) -> bool {
+        self.confirm_delete = None;
+        if key.code == crossterm::event::KeyCode::Char('y') {
+            if let Some(chat) = self.chats.get(self.chat_cursor) {
+                let chat_id = chat.id;
+                let client_id = self.client_id;
+                tokio::spawn(async move {
+                    let _ = tdlib_rs::functions::delete_messages(
+                        chat_id,
+                        vec![msg_id],
+                        true,
+                        client_id,
+                    )
+                    .await;
+                });
+                self.messages.retain(|m| m.id != msg_id);
+                self.msg_cursor = self.msg_cursor.min(
+                    self.messages.len().saturating_sub(1),
+                );
+                self.status = "Message deleted".to_string();
+            }
+        } else {
+            self.status = "Delete cancelled".to_string();
+        }
+        false
     }
 
     fn handle_cmd_key(&mut self, key: KeyEvent) -> bool {
