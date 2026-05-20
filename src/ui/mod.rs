@@ -9,11 +9,18 @@ use crate::app::{App, Panel, Screen};
 use crate::keys::Mode;
 
 pub fn draw(frame: &mut Frame, app: &App) {
+    let input_lines = if app.input.is_empty() {
+        1
+    } else {
+        app.input.split('\n').count() as u16
+    };
+    let input_height = (input_lines + 2).min(7);
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Min(3),
-            Constraint::Length(3),
+            Constraint::Length(input_height),
             Constraint::Length(1),
         ])
         .split(frame.area());
@@ -79,8 +86,18 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(paragraph, area);
 
     if app.mode == Mode::Insert {
-        let cursor_x = app.input[..app.input_cursor].chars().count() as u16;
-        frame.set_cursor_position((area.x + 1 + cursor_x, area.y + 1));
+        let text_before_cursor = &app.input[..app.input_cursor];
+        let cursor_line = text_before_cursor.matches('\n').count();
+        let cursor_col = text_before_cursor
+            .rsplit('\n')
+            .next()
+            .unwrap_or(text_before_cursor)
+            .chars()
+            .count() as u16;
+        frame.set_cursor_position((
+            area.x + 1 + cursor_col,
+            area.y + 1 + cursor_line as u16,
+        ));
     }
 }
 

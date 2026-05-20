@@ -157,6 +157,10 @@ impl App {
                 self.panel = Panel::ChatList;
             }
             Action::SendMessage => self.send_message(),
+            Action::NewLine if self.mode == Mode::Insert => {
+                self.input.insert(self.input_cursor, '\n');
+                self.input_cursor += 1;
+            }
             Action::Char(c) if self.mode == Mode::Insert => {
                 self.input.insert(self.input_cursor, c);
                 self.input_cursor += c.len_utf8();
