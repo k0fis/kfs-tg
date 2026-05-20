@@ -58,11 +58,35 @@ jobs:
         if: runner.os == 'Windows'
         run: cp target/${{ matrix.target }}/release/kfs-tg.exe ${{ matrix.name }}
 
+      - name: Build .deb
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p pkg/DEBIAN pkg/usr/bin
+          cp target/${{ matrix.target }}/release/kfs-tg pkg/usr/bin/
+          cat > pkg/DEBIAN/control << EOF
+          Package: kfs-tg
+          Version: ${VERSION}
+          Architecture: amd64
+          Maintainer: k0fis <k0fis@users.noreply.github.com>
+          Description: Minimalist TUI Telegram client
+          Depends: libssl3, zlib1g
+          EOF
+          sed -i 's/^          //' pkg/DEBIAN/control
+          dpkg-deb --build pkg "kfs-tg_${VERSION}_amd64.deb"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
+
+      - name: Upload .deb artifact
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kfs-tg-deb
+          path: kfs-tg_*_amd64.deb
 
   release:
     needs: build
@@ -75,7 +99,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*
           generate_release_notes: true
 
   homebrew:
@@ -95,4 +120,25 @@ jobs:
               "macos_amd64_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg-macos-amd64",
               "macos_arm64_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg-macos-arm64",
               "linux_amd64_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg-linux-amd64"
+            }
+
+  apt:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Derive version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update APT repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.TAP_TOKEN }}
+          repository: k0fis/apt
+          event-type: update-apt
+          client-payload: |
+            {
+              "package": "kfs-tg",
+              "version": "${{ steps.ver.outputs.version }}",
+              "deb_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg_${{ steps.ver.outputs.version }}_amd64.deb"
             }
