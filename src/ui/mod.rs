@@ -134,7 +134,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     let text = format!(
         " {} |{folder_str} {panel_str} | ?:help | v{}",
         app.status,
-        env!("CARGO_PKG_VERSION")
+        env!("KFS_TG_VERSION")
     );
     let bar = Paragraph::new(text).style(Style::default().fg(Color::DarkGray));
     frame.render_widget(bar, area);

@@ -20,7 +20,7 @@ use app::{App, AppEvent};
 use config::Config;
 
 #[derive(Parser)]
-#[command(name = "kfs-tg", version, about = "Minimalist TUI Telegram client")]
+#[command(name = "kfs-tg", version = env!("KFS_TG_VERSION"), about = "Minimalist TUI Telegram client")]
 struct Cli {
     #[arg(short, long, help = "Path to config file")]
     config: Option<String>,

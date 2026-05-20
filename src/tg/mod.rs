@@ -131,20 +131,20 @@ fn handle_auth_state(
 
             tokio::spawn(async move {
                 let _ = tdlib_rs::functions::set_tdlib_parameters(
-                    false,                                 // use_test_dc
-                    data_dir.clone(),                      // database_directory
-                    format!("{data_dir}/files"),           // files_directory
-                    String::new(),                         // database_encryption_key
-                    true,                                  // use_file_database
-                    true,                                  // use_chat_info_database
-                    true,                                  // use_message_database
-                    false,                                 // use_secret_chats
-                    api_id,                                // api_id
-                    api_hash,                              // api_hash
-                    "en".to_string(),                      // system_language_code
-                    "kfs-tg".to_string(),                  // device_model
-                    String::new(),                         // system_version
-                    env!("CARGO_PKG_VERSION").to_string(), // application_version
+                    false,                              // use_test_dc
+                    data_dir.clone(),                   // database_directory
+                    format!("{data_dir}/files"),        // files_directory
+                    String::new(),                      // database_encryption_key
+                    true,                               // use_file_database
+                    true,                               // use_chat_info_database
+                    true,                               // use_message_database
+                    false,                              // use_secret_chats
+                    api_id,                             // api_id
+                    api_hash,                           // api_hash
+                    "en".to_string(),                   // system_language_code
+                    "kfs-tg".to_string(),               // device_model
+                    String::new(),                      // system_version
+                    env!("KFS_TG_VERSION").to_string(), // application_version
                     client_id,
                 )
                 .await;
