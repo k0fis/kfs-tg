@@ -217,6 +217,34 @@ pub async fn load_chat_messages(
     }
 }
 
+pub async fn load_older_messages(
+    chat_id: i64,
+    from_message_id: i64,
+    client_id: i32,
+    tx: &mpsc::UnboundedSender<AppEvent>,
+) {
+    match tdlib_rs::functions::get_chat_history(chat_id, from_message_id, 0, 30, false, client_id)
+        .await
+    {
+        Ok(tdlib_rs::enums::Messages::Messages(msgs)) => {
+            let mut messages: Vec<Message> = msgs
+                .messages
+                .into_iter()
+                .flatten()
+                .filter_map(|m| convert_message(&m))
+                .filter(|m| m.id != from_message_id)
+                .collect();
+            for msg in &mut messages {
+                resolve_sender_name(msg, client_id).await;
+            }
+            let _ = tx.send(AppEvent::OlderMessagesLoaded(messages));
+        }
+        _ => {
+            let _ = tx.send(AppEvent::OlderMessagesLoaded(Vec::new()));
+        }
+    }
+}
+
 pub async fn send_text_message(
     chat_id: i64,
     text: &str,

@@ -17,6 +17,7 @@ pub enum AppEvent {
     NewMessage(Message),
     MessageEdited(i64, i64, String),
     MessagesDeleted(i64, Vec<i64>),
+    OlderMessagesLoaded(Vec<Message>),
     ChatUnreadCount(i64, i32),
     BotCommandsLoaded(Vec<(String, String)>),
     Error(String),
@@ -68,6 +69,7 @@ pub struct App {
     pub forward_cursor: usize,
     pub search_query: String,
     pub search_active: bool,
+    pub loading_older: bool,
 }
 
 impl App {
@@ -98,6 +100,7 @@ impl App {
             forward_cursor: 0,
             search_query: String::new(),
             search_active: false,
+            loading_older: false,
         }
     }
 
@@ -349,6 +352,16 @@ impl App {
                         .min(self.messages.len().saturating_sub(1));
                 }
             }
+            AppEvent::OlderMessagesLoaded(older) => {
+                self.loading_older = false;
+                if !older.is_empty() {
+                    let count = older.len();
+                    let mut combined = older;
+                    combined.append(&mut self.messages);
+                    self.messages = combined;
+                    self.msg_cursor += count;
+                }
+            }
             AppEvent::ChatUnreadCount(chat_id, count) => {
                 if let Some(chat) = self.chats.iter_mut().find(|c| c.id == chat_id) {
                     chat.unread_count = count;
@@ -390,7 +403,11 @@ impl App {
                 self.chat_cursor = self.chat_cursor.saturating_sub(1);
             }
             Panel::Messages => {
-                self.msg_cursor = self.msg_cursor.saturating_sub(1);
+                if self.msg_cursor == 0 && !self.loading_older {
+                    self.load_older_messages();
+                } else {
+                    self.msg_cursor = self.msg_cursor.saturating_sub(1);
+                }
             }
         }
     }
@@ -403,10 +420,27 @@ impl App {
             self.panel = Panel::Messages;
             self.messages.clear();
             self.msg_cursor = 0;
+            self.loading_older = false;
             self.status = "Loading messages...".to_string();
 
             tokio::spawn(async move {
                 tg::load_chat_messages(chat_id, client_id, &tx).await;
+            });
+        }
+    }
+
+    fn load_older_messages(&mut self) {
+        if self.messages.is_empty() {
+            return;
+        }
+        let oldest_id = self.messages[0].id;
+        if let Some(chat) = self.chats.get(self.chat_cursor) {
+            let chat_id = chat.id;
+            let client_id = self.client_id;
+            let tx = self.event_tx.clone();
+            self.loading_older = true;
+            tokio::spawn(async move {
+                tg::load_older_messages(chat_id, oldest_id, client_id, &tx).await;
             });
         }
     }
