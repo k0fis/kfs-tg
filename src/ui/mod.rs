@@ -153,13 +153,14 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  INSERT mode
  ───────────────────────
  Enter     Send message
+ Ctrl+n    New line
  Esc       Back to Normal
  Ctrl+c    Cancel
 
  Press any key to close";
 
     let w = 30_u16;
-    let h = 20_u16;
+    let h = 21_u16;
     let x = area.width.saturating_sub(w) / 2;
     let y = area.height.saturating_sub(h) / 2;
     let popup = Rect::new(x, y, w.min(area.width), h.min(area.height));
