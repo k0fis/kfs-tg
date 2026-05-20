@@ -50,8 +50,12 @@ fn handle_update(
             handle_auth_state(state.authorization_state, client_id, config, tx);
         }
         Update::NewMessage(msg) => {
-            if let Some(m) = convert_message(&msg.message) {
-                let _ = tx.send(AppEvent::NewMessage(m));
+            if let Some(mut m) = convert_message(&msg.message) {
+                let tx2 = tx.clone();
+                tokio::spawn(async move {
+                    resolve_sender_name(&mut m, client_id).await;
+                    let _ = tx2.send(AppEvent::NewMessage(m));
+                });
             }
         }
         _ => {}
@@ -171,12 +175,15 @@ pub async fn load_chat_messages(
 ) {
     match tdlib_rs::functions::get_chat_history(chat_id, 0, 0, 50, false, client_id).await {
         Ok(tdlib_rs::enums::Messages::Messages(msgs)) => {
-            let messages: Vec<Message> = msgs
+            let mut messages: Vec<Message> = msgs
                 .messages
                 .into_iter()
                 .flatten()
                 .filter_map(|m| convert_message(&m))
                 .collect();
+            for msg in &mut messages {
+                resolve_sender_name(msg, client_id).await;
+            }
             let _ = tx.send(AppEvent::MessagesLoaded(messages));
         }
         _ => {
@@ -260,6 +267,25 @@ pub async fn get_bot_commands(kind: ChatKind, client_id: i32) -> Vec<(String, St
             }
         }
         ChatKind::Channel => Vec::new(),
+    }
+}
+
+async fn resolve_sender_name(msg: &mut Message, client_id: i32) {
+    if !msg.sender_name.starts_with("user:") {
+        return;
+    }
+    let user_id: i64 = msg.sender_name["user:".len()..].parse().unwrap_or(0);
+    if user_id == 0 {
+        return;
+    }
+    if let Ok(tdlib_rs::enums::User::User(user)) =
+        tdlib_rs::functions::get_user(user_id, client_id).await
+    {
+        msg.sender_name = if user.last_name.is_empty() {
+            user.first_name
+        } else {
+            format!("{} {}", user.first_name, user.last_name)
+        };
     }
 }
 
