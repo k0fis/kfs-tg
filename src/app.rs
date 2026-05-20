@@ -318,6 +318,13 @@ impl App {
         });
     }
 
+    pub fn handle_paste(&mut self, text: &str) {
+        if self.mode == Mode::Insert {
+            self.input.insert_str(self.input_cursor, text);
+            self.input_cursor += text.len();
+        }
+    }
+
     pub fn handle_event(&mut self, event: AppEvent) {
         match event {
             AppEvent::AuthStatePhone => {

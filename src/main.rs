@@ -8,7 +8,9 @@ use std::io;
 use std::time::Duration;
 
 use clap::Parser;
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::event::{
+    self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyModifiers,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -48,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -57,14 +59,22 @@ async fn main() -> anyhow::Result<()> {
     loop {
         terminal.draw(|frame| ui::draw(frame, &mut app))?;
 
-        if event::poll(Duration::from_millis(50))?
-            && let Event::Key(key) = event::read()?
-        {
-            if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                break;
-            }
-            if app.handle_key(key) {
-                break;
+        if event::poll(Duration::from_millis(50))? {
+            match event::read()? {
+                Event::Key(key) => {
+                    if key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                    {
+                        break;
+                    }
+                    if app.handle_key(key) {
+                        break;
+                    }
+                }
+                Event::Paste(text) => {
+                    app.handle_paste(&text);
+                }
+                _ => {}
             }
         }
 
@@ -74,7 +84,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableBracketedPaste
+    )?;
     std::process::exit(0);
 }
 
