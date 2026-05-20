@@ -83,6 +83,7 @@ fn map_insert(key: KeyEvent) -> Action {
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::ALT) => Action::NewLine,
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => Action::NewLine,
         KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::NewLine,
+        KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::NewLine,
         KeyCode::Enter => Action::SendMessage,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::ExitInsert,
         KeyCode::Left => Action::CursorLeft,
