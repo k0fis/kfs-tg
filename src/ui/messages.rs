@@ -1,4 +1,5 @@
 use ratatui::prelude::*;
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
 use crate::app::{App, Panel};
@@ -25,6 +26,7 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let matches = app.msg_search_matches();
+    let inner_width = area.width.saturating_sub(2) as usize;
 
     let mut items: Vec<ListItem> = Vec::new();
     let mut msg_to_display: Vec<usize> = Vec::new();
@@ -64,7 +66,9 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
         } else {
             Style::default()
         };
-        items.push(ListItem::new(text).style(style));
+
+        let lines = wrap_text(&text, inner_width);
+        items.push(ListItem::new(Text::from(lines)).style(style));
     }
 
     let display_idx = if !msg_to_display.is_empty() {
@@ -117,4 +121,25 @@ fn format_date(ts: i64) -> String {
         let days = ts / 86400;
         format!("day-{days}")
     }
+}
+
+fn wrap_text(text: &str, width: usize) -> Vec<Line<'static>> {
+    if width == 0 {
+        return vec![Line::from(text.to_owned())];
+    }
+    let mut lines = Vec::new();
+    for line in text.split('\n') {
+        if line.chars().count() <= width {
+            lines.push(Line::from(line.to_owned()));
+        } else {
+            let chars: Vec<char> = line.chars().collect();
+            for chunk in chars.chunks(width) {
+                lines.push(Line::from(chunk.iter().collect::<String>()));
+            }
+        }
+    }
+    if lines.is_empty() {
+        lines.push(Line::from(String::new()));
+    }
+    lines
 }
