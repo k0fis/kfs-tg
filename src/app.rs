@@ -15,6 +15,8 @@ pub enum AppEvent {
     ChatsLoaded(Vec<Chat>),
     MessagesLoaded(Vec<Message>),
     NewMessage(Message),
+    MessageEdited(i64, i64, String),
+    MessagesDeleted(i64, Vec<i64>),
     BotCommandsLoaded(Vec<(String, String)>),
     Error(String),
 }
@@ -147,6 +149,7 @@ impl App {
             Action::EditMsg => self.start_edit(),
             Action::Delete => self.start_delete(),
             Action::Search => self.trigger_bot_commands(),
+            Action::Refresh => self.refresh_chats(),
             Action::SearchChats => {
                 self.search_active = true;
                 self.search_query.clear();
@@ -288,6 +291,24 @@ impl App {
                     self.msg_cursor = self.messages.len().saturating_sub(1);
                 }
             }
+            AppEvent::MessageEdited(chat_id, msg_id, new_text) => {
+                if let Some(chat) = self.chats.get(self.chat_cursor)
+                    && chat_id == chat.id
+                    && let Some(msg) = self.messages.iter_mut().find(|m| m.id == msg_id)
+                {
+                    msg.text = new_text;
+                }
+            }
+            AppEvent::MessagesDeleted(chat_id, msg_ids) => {
+                if let Some(chat) = self.chats.get(self.chat_cursor)
+                    && chat_id == chat.id
+                {
+                    self.messages.retain(|m| !msg_ids.contains(&m.id));
+                    self.msg_cursor = self
+                        .msg_cursor
+                        .min(self.messages.len().saturating_sub(1));
+                }
+            }
             AppEvent::BotCommandsLoaded(cmds) => {
                 if cmds.is_empty() {
                     self.input = "/".to_string();
@@ -343,6 +364,15 @@ impl App {
                 tg::load_chat_messages(chat_id, client_id, &tx).await;
             });
         }
+    }
+
+    fn refresh_chats(&mut self) {
+        let client_id = self.client_id;
+        let tx = self.event_tx.clone();
+        self.status = "Refreshing...".to_string();
+        tokio::spawn(async move {
+            tg::refresh_chats(client_id, &tx).await;
+        });
     }
 
     fn send_message(&mut self) {

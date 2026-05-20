@@ -58,6 +58,16 @@ fn handle_update(
                 });
             }
         }
+        Update::MessageContent(upd) => {
+            let new_text = extract_text_content(&upd.new_content);
+            let _ = tx.send(AppEvent::MessageEdited(upd.chat_id, upd.message_id, new_text));
+        }
+        Update::DeleteMessages(upd) => {
+            if upd.from_cache {
+                return;
+            }
+            let _ = tx.send(AppEvent::MessagesDeleted(upd.chat_id, upd.message_ids));
+        }
         _ => {}
     }
 }
@@ -166,6 +176,10 @@ async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
             let _ = tx.send(AppEvent::Error("Failed to load chats".to_string()));
         }
     }
+}
+
+pub async fn refresh_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
+    load_chats(client_id, tx).await;
 }
 
 pub async fn load_chat_messages(
