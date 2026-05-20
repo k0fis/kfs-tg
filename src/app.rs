@@ -17,6 +17,7 @@ pub enum AppEvent {
     NewMessage(Message),
     MessageEdited(i64, i64, String),
     MessagesDeleted(i64, Vec<i64>),
+    ChatUnreadCount(i64, i32),
     BotCommandsLoaded(Vec<(String, String)>),
     Error(String),
 }
@@ -198,6 +199,25 @@ impl App {
                 }
                 _ => {}
             },
+            Action::PageDown => match self.panel {
+                Panel::ChatList if !self.chats.is_empty() => {
+                    self.chat_cursor =
+                        (self.chat_cursor + 10).min(self.chats.len() - 1);
+                }
+                Panel::Messages if !self.messages.is_empty() => {
+                    self.msg_cursor =
+                        (self.msg_cursor + 10).min(self.messages.len() - 1);
+                }
+                _ => {}
+            },
+            Action::PageUp => match self.panel {
+                Panel::ChatList => {
+                    self.chat_cursor = self.chat_cursor.saturating_sub(10);
+                }
+                Panel::Messages => {
+                    self.msg_cursor = self.msg_cursor.saturating_sub(10);
+                }
+            },
             _ => {}
         }
         false
@@ -323,6 +343,11 @@ impl App {
                     self.msg_cursor = self
                         .msg_cursor
                         .min(self.messages.len().saturating_sub(1));
+                }
+            }
+            AppEvent::ChatUnreadCount(chat_id, count) => {
+                if let Some(chat) = self.chats.iter_mut().find(|c| c.id == chat_id) {
+                    chat.unread_count = count;
                 }
             }
             AppEvent::BotCommandsLoaded(cmds) => {

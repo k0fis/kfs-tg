@@ -104,9 +104,10 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  ───────────────────────
  j/k       Move down/up
  h/l       Switch panel
+ Ctrl+d/u  Page dn/up
+ g/G       Top / Bottom
  Enter     Open chat
  i         Insert mode
- g/G       Top / Bottom
  /         Bot commands
  Ctrl+f    Search chats
  r         Reply

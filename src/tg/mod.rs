@@ -68,6 +68,9 @@ fn handle_update(
             }
             let _ = tx.send(AppEvent::MessagesDeleted(upd.chat_id, upd.message_ids));
         }
+        Update::ChatReadInbox(upd) => {
+            let _ = tx.send(AppEvent::ChatUnreadCount(upd.chat_id, upd.unread_count));
+        }
         _ => {}
     }
 }
