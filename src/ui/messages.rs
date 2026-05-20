@@ -18,6 +18,8 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
 
     let title = if app.msg_search_active {
         format!(" {chat_title} [/{query}] ", query = app.msg_search_query)
+    } else if !app.typing_status.is_empty() {
+        format!(" {chat_title} — {} ", app.typing_status)
     } else {
         format!(" {chat_title} ")
     };

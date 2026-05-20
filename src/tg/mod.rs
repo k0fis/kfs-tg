@@ -71,6 +71,40 @@ fn handle_update(
         Update::ChatReadInbox(upd) => {
             let _ = tx.send(AppEvent::ChatUnreadCount(upd.chat_id, upd.unread_count));
         }
+        Update::UserStatus(upd) => {
+            let status_str = match upd.status {
+                tdlib_rs::enums::UserStatus::Online(_) => "online".to_string(),
+                tdlib_rs::enums::UserStatus::Offline(o) => {
+                    format!("last seen {}", format_relative_time(o.was_online as i64))
+                }
+                tdlib_rs::enums::UserStatus::Recently(_) => "recently".to_string(),
+                tdlib_rs::enums::UserStatus::LastWeek(_) => "last week".to_string(),
+                tdlib_rs::enums::UserStatus::LastMonth(_) => "last month".to_string(),
+                tdlib_rs::enums::UserStatus::Empty => String::new(),
+            };
+            let _ = tx.send(AppEvent::UserStatus(upd.user_id, status_str));
+        }
+        Update::ChatAction(upd) => {
+            let action_str = match upd.action {
+                tdlib_rs::enums::ChatAction::Typing => "typing...".to_string(),
+                tdlib_rs::enums::ChatAction::RecordingVideo => "recording video...".to_string(),
+                tdlib_rs::enums::ChatAction::RecordingVoiceNote => {
+                    "recording voice...".to_string()
+                }
+                tdlib_rs::enums::ChatAction::UploadingPhoto(_) => {
+                    "uploading photo...".to_string()
+                }
+                tdlib_rs::enums::ChatAction::UploadingVideo(_) => {
+                    "uploading video...".to_string()
+                }
+                tdlib_rs::enums::ChatAction::UploadingDocument(_) => {
+                    "uploading file...".to_string()
+                }
+                tdlib_rs::enums::ChatAction::Cancel => String::new(),
+                _ => String::new(),
+            };
+            let _ = tx.send(AppEvent::ChatAction(upd.chat_id, action_str));
+        }
         _ => {}
     }
 }
@@ -468,4 +502,21 @@ pub async fn download_and_open(file_id: i32, client_id: i32) -> anyhow::Result<(
             .spawn()?;
     }
     Ok(())
+}
+
+fn format_relative_time(timestamp: i64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let diff = now - timestamp;
+    if diff < 60 {
+        "just now".to_string()
+    } else if diff < 3600 {
+        format!("{}m ago", diff / 60)
+    } else if diff < 86400 {
+        format!("{}h ago", diff / 3600)
+    } else {
+        format!("{}d ago", diff / 86400)
+    }
 }

@@ -19,6 +19,8 @@ pub enum AppEvent {
     MessagesDeleted(i64, Vec<i64>),
     OlderMessagesLoaded(Vec<Message>),
     ChatUnreadCount(i64, i32),
+    UserStatus(i64, String),
+    ChatAction(i64, String),
     BotCommandsLoaded(Vec<(String, String)>),
     Error(String),
 }
@@ -71,6 +73,7 @@ pub struct App {
     pub search_active: bool,
     pub msg_search_query: String,
     pub msg_search_active: bool,
+    pub typing_status: String,
     pub loading_older: bool,
 }
 
@@ -104,6 +107,7 @@ impl App {
             search_active: false,
             msg_search_query: String::new(),
             msg_search_active: false,
+            typing_status: String::new(),
             loading_older: false,
         }
     }
@@ -396,6 +400,16 @@ impl App {
             AppEvent::ChatUnreadCount(chat_id, count) => {
                 if let Some(chat) = self.chats.iter_mut().find(|c| c.id == chat_id) {
                     chat.unread_count = count;
+                }
+            }
+            AppEvent::UserStatus(_user_id, _status) => {
+                // Could show in chat list, for now just stored for future use
+            }
+            AppEvent::ChatAction(chat_id, action) => {
+                if let Some(chat) = self.chats.get(self.chat_cursor)
+                    && chat_id == chat.id
+                {
+                    self.typing_status = action;
                 }
             }
             AppEvent::BotCommandsLoaded(cmds) => {
