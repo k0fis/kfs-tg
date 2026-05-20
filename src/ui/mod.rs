@@ -64,6 +64,8 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
 
     let title = if let Some((_, ref preview)) = app.reply_to {
         format!(" [{mode_str}] reply: {preview} ")
+    } else if app.edit_msg.is_some() {
+        format!(" [{mode_str}] editing ")
     } else {
         format!(" [{mode_str}] ")
     };
@@ -103,6 +105,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  /         Bot commands
  Ctrl+f    Search chats
  r         Reply
+ e         Edit message
  f         Forward
  d         Delete
  Ctrl+r    Refresh

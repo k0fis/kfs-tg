@@ -232,6 +232,28 @@ pub async fn send_text_message(
     Ok(())
 }
 
+pub async fn edit_message_text(
+    chat_id: i64,
+    message_id: i64,
+    text: &str,
+    client_id: i32,
+) -> anyhow::Result<()> {
+    let content =
+        tdlib_rs::enums::InputMessageContent::InputMessageText(tdlib_rs::types::InputMessageText {
+            text: tdlib_rs::types::FormattedText {
+                text: text.to_string(),
+                entities: Vec::new(),
+            },
+            link_preview_options: None,
+            clear_draft: true,
+        });
+
+    tdlib_rs::functions::edit_message_text(chat_id, message_id, content, client_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("edit_message_text: {} (code {})", e.message, e.code))?;
+    Ok(())
+}
+
 pub async fn submit_phone(phone: &str, client_id: i32) -> anyhow::Result<()> {
     tdlib_rs::functions::set_authentication_phone_number(phone.to_string(), None, client_id)
         .await

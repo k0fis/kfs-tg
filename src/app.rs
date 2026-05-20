@@ -59,6 +59,7 @@ pub struct App {
     pub cmd_cursor: usize,
     pub cmd_visible: bool,
     pub reply_to: Option<(i64, String)>,
+    pub edit_msg: Option<i64>,
     pub confirm_delete: Option<i64>,
     pub forward_msg: Option<i64>,
     pub forward_cursor: usize,
@@ -88,6 +89,7 @@ impl App {
             cmd_cursor: 0,
             cmd_visible: false,
             reply_to: None,
+            edit_msg: None,
             confirm_delete: None,
             forward_msg: None,
             forward_cursor: 0,
@@ -137,10 +139,12 @@ impl App {
             Action::ExitInsert => {
                 self.mode = Mode::Normal;
                 self.reply_to = None;
+                self.edit_msg = None;
             }
             Action::Help => self.help_visible = true,
             Action::Reply => self.start_reply(),
             Action::Forward => self.start_forward(),
+            Action::EditMsg => self.start_edit(),
             Action::Delete => self.start_delete(),
             Action::Search => self.trigger_bot_commands(),
             Action::SearchChats => {
@@ -348,20 +352,30 @@ impl App {
             let chat_id = chat.id;
             let client_id = self.client_id;
             let text = self.input.clone();
-            let reply_to_id = self.reply_to.as_ref().map(|(id, _)| *id);
 
             self.input.clear();
             self.input_cursor = 0;
             self.mode = Mode::Normal;
-            self.reply_to = None;
 
-            tokio::spawn(async move {
-                if let Err(e) =
-                    tg::send_text_message(chat_id, &text, reply_to_id, client_id).await
-                {
-                    tracing::error!("Send message error: {e}");
-                }
-            });
+            if let Some(msg_id) = self.edit_msg.take() {
+                tokio::spawn(async move {
+                    if let Err(e) =
+                        tg::edit_message_text(chat_id, msg_id, &text, client_id).await
+                    {
+                        tracing::error!("Edit message error: {e}");
+                    }
+                });
+            } else {
+                let reply_to_id = self.reply_to.as_ref().map(|(id, _)| *id);
+                self.reply_to = None;
+                tokio::spawn(async move {
+                    if let Err(e) =
+                        tg::send_text_message(chat_id, &text, reply_to_id, client_id).await
+                    {
+                        tracing::error!("Send message error: {e}");
+                    }
+                });
+            }
         }
     }
 
@@ -375,6 +389,19 @@ impl App {
                 msg.text.clone()
             };
             self.reply_to = Some((msg.id, preview));
+            self.mode = Mode::Insert;
+            self.panel = Panel::Messages;
+        }
+    }
+
+    fn start_edit(&mut self) {
+        if self.panel == Panel::Messages
+            && let Some(msg) = self.messages.get(self.msg_cursor)
+            && msg.is_outgoing
+        {
+            self.edit_msg = Some(msg.id);
+            self.input = msg.text.clone();
+            self.input_cursor = self.input.len();
             self.mode = Mode::Insert;
             self.panel = Panel::Messages;
         }
