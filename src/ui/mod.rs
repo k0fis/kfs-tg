@@ -89,30 +89,19 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(border_style)
         .title(title);
 
-    let paragraph = Paragraph::new(app.input.as_str())
-        .block(block)
-        .wrap(Wrap { trim: false });
+    let paragraph = Paragraph::new(app.input.as_str()).block(block);
     frame.render_widget(paragraph, area);
 
     if app.mode == Mode::Insert {
-        let inner_width = area.width.saturating_sub(2) as usize;
         let text_before_cursor = &app.input[..app.input_cursor];
-        let mut visual_line: u16 = 0;
-        let mut visual_col: u16 = 0;
-
-        for line in text_before_cursor.split('\n') {
-            let line_chars = line.chars().count();
-            let wrap_lines = inner_width
-                .checked_div(1)
-                .map(|_| line_chars / inner_width.max(1))
-                .unwrap_or(0);
-            visual_line += wrap_lines as u16;
-            visual_col = (line_chars % inner_width.max(1)) as u16;
-        }
-        let newlines = text_before_cursor.matches('\n').count() as u16;
-        visual_line += newlines;
-
-        frame.set_cursor_position((area.x + 1 + visual_col, area.y + 1 + visual_line));
+        let cursor_line = text_before_cursor.matches('\n').count() as u16;
+        let cursor_col = text_before_cursor
+            .rsplit('\n')
+            .next()
+            .unwrap_or(text_before_cursor)
+            .chars()
+            .count() as u16;
+        frame.set_cursor_position((area.x + 1 + cursor_col, area.y + 1 + cursor_line));
     }
 }
 
