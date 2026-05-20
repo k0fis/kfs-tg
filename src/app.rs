@@ -169,6 +169,22 @@ impl App {
                 self.input_cursor -= prev;
                 self.input.remove(self.input_cursor);
             }
+            Action::CursorLeft if self.input_cursor > 0 => {
+                let prev = self.input[..self.input_cursor]
+                    .chars()
+                    .last()
+                    .map(|c| c.len_utf8())
+                    .unwrap_or(0);
+                self.input_cursor -= prev;
+            }
+            Action::CursorRight if self.input_cursor < self.input.len() => {
+                let next = self.input[self.input_cursor..]
+                    .chars()
+                    .next()
+                    .map(|c| c.len_utf8())
+                    .unwrap_or(0);
+                self.input_cursor += next;
+            }
             Action::GoTop => match self.panel {
                 Panel::ChatList => self.chat_cursor = 0,
                 Panel::Messages => self.msg_cursor = 0,

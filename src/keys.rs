@@ -30,6 +30,8 @@ pub enum Action {
     Help,
     Char(char),
     Backspace,
+    CursorLeft,
+    CursorRight,
     None,
 }
 
@@ -69,6 +71,8 @@ fn map_insert(key: KeyEvent) -> Action {
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => Action::NewLine,
         KeyCode::Enter => Action::SendMessage,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::ExitInsert,
+        KeyCode::Left => Action::CursorLeft,
+        KeyCode::Right => Action::CursorRight,
         KeyCode::Char(c) => Action::Char(c),
         KeyCode::Backspace => Action::Backspace,
         _ => Action::None,

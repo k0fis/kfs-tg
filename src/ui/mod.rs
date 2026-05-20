@@ -77,6 +77,11 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
 
     let paragraph = Paragraph::new(app.input.as_str()).block(block);
     frame.render_widget(paragraph, area);
+
+    if app.mode == Mode::Insert {
+        let cursor_x = app.input[..app.input_cursor].chars().count() as u16;
+        frame.set_cursor_position((area.x + 1 + cursor_x, area.y + 1));
+    }
 }
 
 fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
