@@ -32,6 +32,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
     if app.cmd_visible {
         draw_commands(frame, app, frame.area());
     }
+    if app.forward_msg.is_some() {
+        draw_forward_picker(frame, app, frame.area());
+    }
 }
 
 fn draw_main(frame: &mut Frame, app: &App, area: Rect) {
@@ -98,6 +101,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  i         Insert mode
  g/G       Top / Bottom
  /         Bot commands
+ Ctrl+f    Search chats
  r         Reply
  f         Forward
  d         Delete
@@ -168,6 +172,42 @@ fn draw_commands(frame: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
         .title(" Bot Commands (Enter:select Esc:close) ");
+    let paragraph = Paragraph::new(lines).block(block);
+    frame.render_widget(paragraph, popup);
+}
+
+fn draw_forward_picker(frame: &mut Frame, app: &App, area: Rect) {
+    use ratatui::text::{Line, Span};
+
+    let lines: Vec<Line> = app
+        .chats
+        .iter()
+        .enumerate()
+        .map(|(i, chat)| {
+            let prefix = if i == app.forward_cursor { "> " } else { "  " };
+            let style = if i == app.forward_cursor {
+                Style::default().fg(Color::Black).bg(Color::Green)
+            } else {
+                Style::default()
+            };
+            Line::from(vec![Span::styled(
+                format!("{prefix}{}", chat.title),
+                style,
+            )])
+        })
+        .collect();
+
+    let h = (app.chats.len() as u16 + 2).min(area.height.saturating_sub(4));
+    let w = 45_u16.min(area.width.saturating_sub(4));
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let popup = Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, popup);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Green))
+        .title(" Forward to (Enter:send Esc:cancel) ");
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup);
 }

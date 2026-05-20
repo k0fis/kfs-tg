@@ -60,6 +60,10 @@ pub struct App {
     pub cmd_visible: bool,
     pub reply_to: Option<(i64, String)>,
     pub confirm_delete: Option<i64>,
+    pub forward_msg: Option<i64>,
+    pub forward_cursor: usize,
+    pub search_query: String,
+    pub search_active: bool,
 }
 
 impl App {
@@ -85,6 +89,10 @@ impl App {
             cmd_visible: false,
             reply_to: None,
             confirm_delete: None,
+            forward_msg: None,
+            forward_cursor: 0,
+            search_query: String::new(),
+            search_active: false,
         }
     }
 
@@ -98,8 +106,16 @@ impl App {
             return self.handle_delete_confirm(key, msg_id);
         }
 
+        if self.forward_msg.is_some() {
+            return self.handle_forward_key(key);
+        }
+
         if self.cmd_visible {
             return self.handle_cmd_key(key);
+        }
+
+        if self.search_active {
+            return self.handle_search_key(key);
         }
 
         if self.screen == Screen::Login {
@@ -124,8 +140,14 @@ impl App {
             }
             Action::Help => self.help_visible = true,
             Action::Reply => self.start_reply(),
+            Action::Forward => self.start_forward(),
             Action::Delete => self.start_delete(),
             Action::Search => self.trigger_bot_commands(),
+            Action::SearchChats => {
+                self.search_active = true;
+                self.search_query.clear();
+                self.panel = Panel::ChatList;
+            }
             Action::SendMessage => self.send_message(),
             Action::Char(c) if self.mode == Mode::Insert => {
                 self.input.insert(self.input_cursor, c);
@@ -422,6 +444,63 @@ impl App {
         false
     }
 
+    fn start_forward(&mut self) {
+        if self.panel == Panel::Messages
+            && let Some(msg) = self.messages.get(self.msg_cursor)
+        {
+            self.forward_msg = Some(msg.id);
+            self.forward_cursor = 0;
+            self.status = "Forward to: j/k navigate, Enter select, Esc cancel".to_string();
+        }
+    }
+
+    fn handle_forward_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            crossterm::event::KeyCode::Esc | crossterm::event::KeyCode::Char('q') => {
+                self.forward_msg = None;
+                self.status = "Forward cancelled".to_string();
+            }
+            crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down
+                if !self.chats.is_empty() =>
+            {
+                self.forward_cursor =
+                    (self.forward_cursor + 1).min(self.chats.len() - 1);
+            }
+            crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                self.forward_cursor = self.forward_cursor.saturating_sub(1);
+            }
+            crossterm::event::KeyCode::Enter => {
+                if let Some(msg_id) = self.forward_msg.take()
+                    && let (Some(from_chat), Some(to_chat)) = (
+                        self.chats.get(self.chat_cursor),
+                        self.chats.get(self.forward_cursor),
+                    )
+                {
+                    let from_id = from_chat.id;
+                    let to_id = to_chat.id;
+                    let client_id = self.client_id;
+                    let to_title = to_chat.title.clone();
+                    self.status = format!("Forwarded to {to_title}");
+                    tokio::spawn(async move {
+                        let _ = tdlib_rs::functions::forward_messages(
+                            to_id,
+                            None,
+                            from_id,
+                            vec![msg_id],
+                            None,
+                            false,
+                            false,
+                            client_id,
+                        )
+                        .await;
+                    });
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+
     fn trigger_bot_commands(&mut self) {
         if let Some(chat) = self.chats.get(self.chat_cursor) {
             let kind = chat.kind;
@@ -438,6 +517,86 @@ impl App {
                 let cmds = tg::get_bot_commands(kind, client_id).await;
                 let _ = tx.send(AppEvent::BotCommandsLoaded(cmds));
             });
+        }
+    }
+
+    fn handle_search_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            crossterm::event::KeyCode::Esc => {
+                self.search_active = false;
+                self.search_query.clear();
+            }
+            crossterm::event::KeyCode::Enter => {
+                self.search_active = false;
+                self.select_chat();
+            }
+            crossterm::event::KeyCode::Backspace => {
+                self.search_query.pop();
+                self.snap_cursor_to_filtered();
+            }
+            crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
+                self.search_move_down();
+            }
+            crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                self.search_move_up();
+            }
+            crossterm::event::KeyCode::Char(c) => {
+                self.search_query.push(c);
+                self.snap_cursor_to_filtered();
+            }
+            _ => {}
+        }
+        false
+    }
+
+    pub fn filtered_chat_indices(&self) -> Vec<usize> {
+        if self.search_query.is_empty() {
+            return (0..self.chats.len()).collect();
+        }
+        let q = self.search_query.to_lowercase();
+        self.chats
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.title.to_lowercase().contains(&q))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    fn snap_cursor_to_filtered(&mut self) {
+        let indices = self.filtered_chat_indices();
+        if indices.is_empty() {
+            return;
+        }
+        if !indices.contains(&self.chat_cursor) {
+            self.chat_cursor = indices[0];
+        }
+    }
+
+    fn search_move_down(&mut self) {
+        let indices = self.filtered_chat_indices();
+        if indices.is_empty() {
+            return;
+        }
+        if let Some(pos) = indices.iter().position(|&i| i == self.chat_cursor) {
+            if pos + 1 < indices.len() {
+                self.chat_cursor = indices[pos + 1];
+            }
+        } else {
+            self.chat_cursor = indices[0];
+        }
+    }
+
+    fn search_move_up(&mut self) {
+        let indices = self.filtered_chat_indices();
+        if indices.is_empty() {
+            return;
+        }
+        if let Some(pos) = indices.iter().position(|&i| i == self.chat_cursor) {
+            if pos > 0 {
+                self.chat_cursor = indices[pos - 1];
+            }
+        } else {
+            self.chat_cursor = indices[0];
         }
     }
 }
