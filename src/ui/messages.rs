@@ -16,20 +16,35 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .map(|c| c.title.as_str())
         .unwrap_or("No chat selected");
 
+    let title = if app.msg_search_active {
+        format!(" {chat_title} [/{query}] ", query = app.msg_search_query)
+    } else {
+        format!(" {chat_title} ")
+    };
+
+    let matches = app.msg_search_matches();
+
     let items: Vec<ListItem> = app
         .messages
         .iter()
-        .map(|msg| {
+        .enumerate()
+        .map(|(i, msg)| {
             let prefix = if msg.is_outgoing {
                 "You"
             } else {
                 &msg.sender_name
             };
-            ListItem::new(format!(
+            let text = format!(
                 "[{}] {prefix}: {}",
                 format_ts(msg.timestamp),
                 msg.text
-            ))
+            );
+            let style = if matches.contains(&i) {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            };
+            ListItem::new(text).style(style)
         })
         .collect();
 
@@ -37,7 +52,7 @@ pub fn draw(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" {chat_title} "))
+                .title(title)
                 .border_style(border_style),
         )
         .highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));

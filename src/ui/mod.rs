@@ -127,6 +127,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  i         Insert mode
  /         Bot commands
  Ctrl+f    Search chats
+ Ctrl+s    Search messages
  r         Reply
  e         Edit message
  o         Open media

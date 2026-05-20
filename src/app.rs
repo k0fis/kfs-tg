@@ -69,6 +69,8 @@ pub struct App {
     pub forward_cursor: usize,
     pub search_query: String,
     pub search_active: bool,
+    pub msg_search_query: String,
+    pub msg_search_active: bool,
     pub loading_older: bool,
 }
 
@@ -100,6 +102,8 @@ impl App {
             forward_cursor: 0,
             search_query: String::new(),
             search_active: false,
+            msg_search_query: String::new(),
+            msg_search_active: false,
             loading_older: false,
         }
     }
@@ -124,6 +128,10 @@ impl App {
 
         if self.search_active {
             return self.handle_search_key(key);
+        }
+
+        if self.msg_search_active {
+            return self.handle_msg_search_key(key);
         }
 
         if self.screen == Screen::Login {
@@ -159,6 +167,11 @@ impl App {
                 self.search_active = true;
                 self.search_query.clear();
                 self.panel = Panel::ChatList;
+            }
+            Action::SearchMessages => {
+                self.msg_search_active = true;
+                self.msg_search_query.clear();
+                self.panel = Panel::Messages;
             }
             Action::SendMessage => self.send_message(),
             Action::NewLine if self.mode == Mode::Insert => {
@@ -766,6 +779,81 @@ impl App {
             }
         } else {
             self.chat_cursor = indices[0];
+        }
+    }
+
+    fn handle_msg_search_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            crossterm::event::KeyCode::Esc => {
+                self.msg_search_active = false;
+                self.msg_search_query.clear();
+            }
+            crossterm::event::KeyCode::Enter
+            | crossterm::event::KeyCode::Char('n') => {
+                self.msg_search_next();
+            }
+            crossterm::event::KeyCode::Char('N') => {
+                self.msg_search_prev();
+            }
+            crossterm::event::KeyCode::Backspace => {
+                self.msg_search_query.pop();
+                self.snap_msg_to_search();
+            }
+            crossterm::event::KeyCode::Char(c) => {
+                self.msg_search_query.push(c);
+                self.snap_msg_to_search();
+            }
+            _ => {}
+        }
+        false
+    }
+
+    pub fn msg_search_matches(&self) -> Vec<usize> {
+        if self.msg_search_query.is_empty() {
+            return Vec::new();
+        }
+        let q = self.msg_search_query.to_lowercase();
+        self.messages
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.text.to_lowercase().contains(&q))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    fn snap_msg_to_search(&mut self) {
+        let matches = self.msg_search_matches();
+        if matches.is_empty() {
+            return;
+        }
+        if let Some(&first_after) = matches.iter().find(|&&i| i >= self.msg_cursor) {
+            self.msg_cursor = first_after;
+        } else {
+            self.msg_cursor = matches[0];
+        }
+    }
+
+    fn msg_search_next(&mut self) {
+        let matches = self.msg_search_matches();
+        if matches.is_empty() {
+            return;
+        }
+        if let Some(&next) = matches.iter().find(|&&i| i > self.msg_cursor) {
+            self.msg_cursor = next;
+        } else {
+            self.msg_cursor = matches[0];
+        }
+    }
+
+    fn msg_search_prev(&mut self) {
+        let matches = self.msg_search_matches();
+        if matches.is_empty() {
+            return;
+        }
+        if let Some(&prev) = matches.iter().rev().find(|&&i| i < self.msg_cursor) {
+            self.msg_cursor = prev;
+        } else {
+            self.msg_cursor = *matches.last().unwrap();
         }
     }
 }
