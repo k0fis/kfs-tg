@@ -129,6 +129,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  Ctrl+f    Search chats
  r         Reply
  e         Edit message
+ o         Open media
  f         Forward
  d         Delete
  Ctrl+r    Refresh

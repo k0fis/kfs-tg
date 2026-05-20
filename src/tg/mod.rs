@@ -387,6 +387,7 @@ fn convert_message(msg: &tdlib_rs::types::Message) -> Option<Message> {
         text: extract_text_content(&msg.content),
         timestamp: msg.date as i64,
         is_outgoing: msg.is_outgoing,
+        file_id: extract_file_id(&msg.content),
     })
 }
 
@@ -419,4 +420,52 @@ fn extract_text_content(content: &tdlib_rs::enums::MessageContent) -> String {
         }
         _ => "[unsupported message]".to_string(),
     }
+}
+
+fn extract_file_id(content: &tdlib_rs::enums::MessageContent) -> Option<i32> {
+    match content {
+        tdlib_rs::enums::MessageContent::MessagePhoto(p) => p
+            .photo
+            .sizes
+            .last()
+            .map(|s| s.photo.id),
+        tdlib_rs::enums::MessageContent::MessageVideo(v) => Some(v.video.video.id),
+        tdlib_rs::enums::MessageContent::MessageDocument(d) => Some(d.document.document.id),
+        tdlib_rs::enums::MessageContent::MessageVoiceNote(v) => Some(v.voice_note.voice.id),
+        tdlib_rs::enums::MessageContent::MessageVideoNote(v) => Some(v.video_note.video.id),
+        tdlib_rs::enums::MessageContent::MessageAnimation(a) => Some(a.animation.animation.id),
+        tdlib_rs::enums::MessageContent::MessageSticker(s) => Some(s.sticker.sticker.id),
+        _ => None,
+    }
+}
+
+pub async fn download_and_open(file_id: i32, client_id: i32) -> anyhow::Result<()> {
+    let file = tdlib_rs::functions::download_file(file_id, 32, 0, 0, true, client_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("download: {} (code {})", e.message, e.code))?;
+
+    let tdlib_rs::enums::File::File(f) = file;
+    let path = f.local.path;
+    if path.is_empty() {
+        return Err(anyhow::anyhow!("file path empty after download"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        tokio::process::Command::new("open")
+            .arg(&path)
+            .spawn()?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        tokio::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        tokio::process::Command::new("cmd")
+            .args(["/C", "start", "", &path])
+            .spawn()?;
+    }
+    Ok(())
 }

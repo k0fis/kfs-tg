@@ -151,6 +151,7 @@ impl App {
             Action::Reply => self.start_reply(),
             Action::Forward => self.start_forward(),
             Action::EditMsg => self.start_edit(),
+            Action::OpenMedia => self.open_media(),
             Action::Delete => self.start_delete(),
             Action::Search => self.trigger_bot_commands(),
             Action::Refresh => self.refresh_chats(),
@@ -513,6 +514,21 @@ impl App {
             self.input_cursor = self.input.len();
             self.mode = Mode::Insert;
             self.panel = Panel::Messages;
+        }
+    }
+
+    fn open_media(&mut self) {
+        if self.panel == Panel::Messages
+            && let Some(msg) = self.messages.get(self.msg_cursor)
+            && let Some(file_id) = msg.file_id
+        {
+            let client_id = self.client_id;
+            self.status = "Downloading...".to_string();
+            tokio::spawn(async move {
+                if let Err(e) = tg::download_and_open(file_id, client_id).await {
+                    tracing::error!("Open media error: {e}");
+                }
+            });
         }
     }
 

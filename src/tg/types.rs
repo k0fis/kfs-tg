@@ -25,6 +25,7 @@ pub struct Message {
     pub text: String,
     pub timestamp: i64,
     pub is_outgoing: bool,
+    pub file_id: Option<i32>,
 }
 
 #[derive(Debug, Clone)]
