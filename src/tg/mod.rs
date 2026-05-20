@@ -541,6 +541,51 @@ fn extract_file_id(content: &tdlib_rs::enums::MessageContent) -> Option<i32> {
     }
 }
 
+pub async fn open_public_chat(
+    username: &str,
+    client_id: i32,
+    tx: &mpsc::UnboundedSender<AppEvent>,
+) {
+    match tdlib_rs::functions::search_public_chat(username.to_string(), client_id).await {
+        Ok(tdlib_rs::enums::Chat::Chat(chat)) => {
+            let kind = match &chat.r#type {
+                tdlib_rs::enums::ChatType::Private(p) => ChatKind::Private { user_id: p.user_id },
+                tdlib_rs::enums::ChatType::Secret(s) => ChatKind::Private { user_id: s.user_id },
+                tdlib_rs::enums::ChatType::BasicGroup(g) => ChatKind::BasicGroup {
+                    group_id: g.basic_group_id,
+                },
+                tdlib_rs::enums::ChatType::Supergroup(sg) => {
+                    if sg.is_channel {
+                        ChatKind::Channel
+                    } else {
+                        ChatKind::Supergroup {
+                            group_id: sg.supergroup_id,
+                        }
+                    }
+                }
+            };
+            let c = Chat {
+                id: chat.id,
+                title: chat.title,
+                unread_count: chat.unread_count,
+                last_message: chat
+                    .last_message
+                    .as_ref()
+                    .map(|m| extract_text_content(&m.content)),
+                last_read_inbox_message_id: chat.last_read_inbox_message_id,
+                kind,
+            };
+            let _ = tx.send(AppEvent::PublicChatOpened(c));
+        }
+        Err(e) => {
+            let _ = tx.send(AppEvent::Error(format!(
+                "@{username}: {} (code {})",
+                e.message, e.code
+            )));
+        }
+    }
+}
+
 pub async fn download_and_open(file_id: i32, client_id: i32) -> anyhow::Result<()> {
     let file = tdlib_rs::functions::download_file(file_id, 32, 0, 0, true, client_id)
         .await

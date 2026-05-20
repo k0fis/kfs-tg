@@ -24,6 +24,7 @@ pub enum AppEvent {
     UserStatus(i64, String),
     ChatAction(i64, String),
     BotCommandsLoaded(Vec<(String, String)>),
+    PublicChatOpened(Chat),
     Error(String),
 }
 
@@ -77,6 +78,8 @@ pub struct App {
     pub search_active: bool,
     pub msg_search_query: String,
     pub msg_search_active: bool,
+    pub open_chat_active: bool,
+    pub open_chat_query: String,
     pub typing_status: String,
     pub loading_older: bool,
     pub msg_list_state: ListState,
@@ -115,6 +118,8 @@ impl App {
             search_active: false,
             msg_search_query: String::new(),
             msg_search_active: false,
+            open_chat_active: false,
+            open_chat_query: String::new(),
             typing_status: String::new(),
             loading_older: false,
             msg_list_state: ListState::default(),
@@ -146,6 +151,10 @@ impl App {
 
         if self.msg_search_active {
             return self.handle_msg_search_key(key);
+        }
+
+        if self.open_chat_active {
+            return self.handle_open_chat_key(key);
         }
 
         if self.screen == Screen::Login {
@@ -187,6 +196,10 @@ impl App {
                 self.msg_search_query.clear();
                 self.panel = Panel::Messages;
             }
+            Action::OpenChat => {
+                self.open_chat_active = true;
+                self.open_chat_query.clear();
+            }
             Action::SendMessage => self.send_message(),
             Action::NewLine if self.mode == Mode::Insert => {
                 self.input.insert(self.input_cursor, '\n');
@@ -220,6 +233,30 @@ impl App {
                     .map(|c| c.len_utf8())
                     .unwrap_or(0);
                 self.input_cursor += next;
+            }
+            Action::CursorWordLeft if self.input_cursor > 0 => {
+                let before = &self.input[..self.input_cursor];
+                let chars: Vec<char> = before.chars().collect();
+                let mut i = chars.len();
+                while i > 0 && !chars[i - 1].is_alphanumeric() {
+                    i -= 1;
+                }
+                while i > 0 && chars[i - 1].is_alphanumeric() {
+                    i -= 1;
+                }
+                self.input_cursor = chars[..i].iter().map(|c| c.len_utf8()).sum();
+            }
+            Action::CursorWordRight if self.input_cursor < self.input.len() => {
+                let after = &self.input[self.input_cursor..];
+                let chars: Vec<char> = after.chars().collect();
+                let mut i = 0;
+                while i < chars.len() && !chars[i].is_alphanumeric() {
+                    i += 1;
+                }
+                while i < chars.len() && chars[i].is_alphanumeric() {
+                    i += 1;
+                }
+                self.input_cursor += chars[..i].iter().map(|c| c.len_utf8()).sum::<usize>();
             }
             Action::GoTop => match self.panel {
                 Panel::ChatList => self.chat_cursor = 0,
@@ -442,6 +479,20 @@ impl App {
                     self.cmd_cursor = 0;
                     self.cmd_visible = true;
                 }
+            }
+            AppEvent::PublicChatOpened(chat) => {
+                if !self.chats.iter().any(|c| c.id == chat.id) {
+                    self.chats.insert(0, chat.clone());
+                    self.chat_cursor = 0;
+                } else {
+                    self.chat_cursor = self
+                        .chats
+                        .iter()
+                        .position(|c| c.id == chat.id)
+                        .unwrap_or(0);
+                }
+                self.select_chat();
+                self.status = format!("Opened: {}", chat.title);
             }
             AppEvent::Error(e) => {
                 self.status = format!("Error: {e}");
@@ -862,6 +913,36 @@ impl App {
             crossterm::event::KeyCode::Char(c) => {
                 self.msg_search_query.push(c);
                 self.snap_msg_to_search();
+            }
+            _ => {}
+        }
+        false
+    }
+
+    fn handle_open_chat_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            crossterm::event::KeyCode::Esc => {
+                self.open_chat_active = false;
+                self.open_chat_query.clear();
+            }
+            crossterm::event::KeyCode::Enter => {
+                let username = self.open_chat_query.trim().trim_start_matches('@').to_string();
+                self.open_chat_active = false;
+                self.open_chat_query.clear();
+                if !username.is_empty() {
+                    self.status = format!("Searching @{username}...");
+                    let client_id = self.client_id;
+                    let tx = self.event_tx.clone();
+                    tokio::spawn(async move {
+                        tg::open_public_chat(&username, client_id, &tx).await;
+                    });
+                }
+            }
+            crossterm::event::KeyCode::Backspace => {
+                self.open_chat_query.pop();
+            }
+            crossterm::event::KeyCode::Char(c) => {
+                self.open_chat_query.push(c);
             }
             _ => {}
         }

@@ -65,6 +65,8 @@ fn draw_main(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
+    use ratatui::text::Line as TLine;
+
     let mode_str = match app.mode {
         Mode::Normal => "NORMAL",
         Mode::Insert => "INSERT",
@@ -84,28 +86,85 @@ fn draw_input(frame: &mut Frame, app: &App, area: Rect) {
         format!(" [{mode_str}] ")
     };
 
+    let inner_w = area.width.saturating_sub(2) as usize;
+    let visible_lines = area.height.saturating_sub(2);
+
+    let wrapped_lines = wrap_input(&app.input, inner_w);
+
+    let (cursor_visual_line, cursor_visual_col) = if inner_w > 0 {
+        let text_before_cursor = &app.input[..app.input_cursor];
+        let mut vline = 0u16;
+        let logical_lines: Vec<&str> = text_before_cursor.split('\n').collect();
+        for (i, line) in logical_lines.iter().enumerate() {
+            let chars = line.chars().count();
+            if i < logical_lines.len() - 1 {
+                vline += if chars == 0 {
+                    1
+                } else {
+                    ((chars as u16).saturating_sub(1)) / inner_w as u16 + 1
+                };
+            } else {
+                vline += chars as u16 / inner_w as u16;
+            }
+        }
+        let last_chars = logical_lines.last().map(|l| l.chars().count()).unwrap_or(0);
+        let vcol = (last_chars % inner_w) as u16;
+        (vline, vcol)
+    } else {
+        (0, 0)
+    };
+
+    let scroll_y = cursor_visual_line.saturating_sub(visible_lines.saturating_sub(1));
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
         .title(title);
 
-    let paragraph = Paragraph::new(app.input.as_str()).block(block);
+    let text = ratatui::text::Text::from(
+        wrapped_lines
+            .into_iter()
+            .map(TLine::from)
+            .collect::<Vec<_>>(),
+    );
+    let paragraph = Paragraph::new(text).block(block).scroll((scroll_y, 0));
     frame.render_widget(paragraph, area);
 
     if app.mode == Mode::Insert {
-        let text_before_cursor = &app.input[..app.input_cursor];
-        let cursor_line = text_before_cursor.matches('\n').count() as u16;
-        let cursor_col = text_before_cursor
-            .rsplit('\n')
-            .next()
-            .unwrap_or(text_before_cursor)
-            .chars()
-            .count() as u16;
-        frame.set_cursor_position((area.x + 1 + cursor_col, area.y + 1 + cursor_line));
+        let draw_line = cursor_visual_line - scroll_y;
+        frame.set_cursor_position((area.x + 1 + cursor_visual_col, area.y + 1 + draw_line));
     }
 }
 
+fn wrap_input(input: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![input.to_owned()];
+    }
+    let mut lines = Vec::new();
+    for line in input.split('\n') {
+        let chars: Vec<char> = line.chars().collect();
+        if chars.is_empty() {
+            lines.push(String::new());
+        } else {
+            for chunk in chars.chunks(width) {
+                lines.push(chunk.iter().collect());
+            }
+        }
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
 fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
+    if app.open_chat_active {
+        let text = format!(" Open chat: @{}_", app.open_chat_query);
+        let bar = Paragraph::new(text).style(Style::default().fg(Color::Cyan));
+        frame.render_widget(bar, area);
+        return;
+    }
+
     let panel_str = match app.panel {
         Panel::ChatList => "chats",
         Panel::Messages => "messages",
@@ -142,6 +201,7 @@ fn draw_help(frame: &mut Frame, area: Rect) {
  /         Bot commands
  Ctrl+f    Search chats
  Ctrl+s    Search messages
+ Ctrl+o    Open @username
  r         Reply
  e         Edit message
  o         Open media

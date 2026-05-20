@@ -26,6 +26,7 @@ pub enum Action {
     OpenMedia,
     SearchChats,
     SearchMessages,
+    OpenChat,
     SwitchFolder(u8),
     GoTop,
     GoBottom,
@@ -37,6 +38,8 @@ pub enum Action {
     Backspace,
     CursorLeft,
     CursorRight,
+    CursorWordLeft,
+    CursorWordRight,
     None,
 }
 
@@ -62,6 +65,7 @@ fn map_normal(key: KeyEvent) -> Action {
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Action::SearchMessages
         }
+        KeyCode::Char('o') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::OpenChat,
         KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::PageDown,
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::PageUp,
         KeyCode::Char('r') => Action::Reply,
@@ -86,6 +90,10 @@ fn map_insert(key: KeyEvent) -> Action {
         KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::NewLine,
         KeyCode::Enter => Action::SendMessage,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::ExitInsert,
+        KeyCode::Left if key.modifiers.contains(KeyModifiers::ALT) => Action::CursorWordLeft,
+        KeyCode::Right if key.modifiers.contains(KeyModifiers::ALT) => Action::CursorWordRight,
+        KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::ALT) => Action::CursorWordLeft,
+        KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::ALT) => Action::CursorWordRight,
         KeyCode::Left => Action::CursorLeft,
         KeyCode::Right => Action::CursorRight,
         KeyCode::Char(c) => Action::Char(c),

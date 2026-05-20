@@ -68,7 +68,21 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
         };
 
         let lines = wrap_text(&text, inner_width);
-        items.push(ListItem::new(Text::from(lines)).style(style));
+        let max_chunk = 20;
+        if lines.len() <= max_chunk {
+            items.push(ListItem::new(Text::from(lines)).style(style));
+        } else {
+            for (ci, chunk) in lines.chunks(max_chunk).enumerate() {
+                let mut chunk_lines: Vec<Line<'static>> = chunk.to_vec();
+                if ci > 0 {
+                    chunk_lines.insert(
+                        0,
+                        Line::from("  ┈┈┈").style(Style::default().fg(Color::DarkGray)),
+                    );
+                }
+                items.push(ListItem::new(Text::from(chunk_lines)).style(style));
+            }
+        }
     }
 
     let display_idx = if !msg_to_display.is_empty() {
