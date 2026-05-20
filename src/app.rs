@@ -328,11 +328,28 @@ impl App {
                 }
             }
             AppEvent::NewMessage(msg) => {
-                if let Some(chat) = self.chats.get(self.chat_cursor)
-                    && msg.chat_id == chat.id
-                {
+                let current_chat_id =
+                    self.chats.get(self.chat_cursor).map(|c| c.id);
+                if current_chat_id == Some(msg.chat_id) {
                     self.messages.push(msg);
                     self.msg_cursor = self.messages.len().saturating_sub(1);
+                } else if !msg.is_outgoing && self.config.ui.notifications {
+                    let chat_title = self
+                        .chats
+                        .iter()
+                        .find(|c| c.id == msg.chat_id)
+                        .map(|c| c.title.as_str())
+                        .unwrap_or("New message");
+                    let body = if msg.text.len() > 80 {
+                        format!("{}...", &msg.text[..80])
+                    } else {
+                        msg.text.clone()
+                    };
+                    let _ = notify_rust::Notification::new()
+                        .summary(chat_title)
+                        .body(&body)
+                        .appname("kfs-tg")
+                        .show();
                 }
             }
             AppEvent::MessageEdited(chat_id, msg_id, new_text) => {

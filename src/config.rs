@@ -41,6 +41,8 @@ pub struct UiConfig {
     #[serde(default = "default_date_format")]
     #[allow(dead_code)]
     pub date_format: String,
+    #[serde(default = "default_true")]
+    pub notifications: bool,
 }
 
 impl Default for UiConfig {
@@ -49,6 +51,7 @@ impl Default for UiConfig {
             chat_list_width: default_chat_list_width(),
             show_timestamps: true,
             date_format: default_date_format(),
+            notifications: true,
         }
     }
 }
