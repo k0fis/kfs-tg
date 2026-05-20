@@ -320,8 +320,9 @@ impl App {
 
     pub fn handle_paste(&mut self, text: &str) {
         if self.mode == Mode::Insert {
-            self.input.insert_str(self.input_cursor, text);
-            self.input_cursor += text.len();
+            let clean = text.replace("\r\n", "\n").replace('\r', "\n");
+            self.input.insert_str(self.input_cursor, &clean);
+            self.input_cursor += clean.len();
         }
     }
 
