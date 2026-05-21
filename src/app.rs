@@ -760,9 +760,7 @@ impl App {
         let q = self.cmd_filter.to_lowercase();
         self.bot_commands
             .iter()
-            .filter(|(cmd, desc)| {
-                cmd.to_lowercase().contains(&q) || desc.to_lowercase().contains(&q)
-            })
+            .filter(|(cmd, _)| cmd.to_lowercase().contains(&q))
             .cloned()
             .collect()
     }
