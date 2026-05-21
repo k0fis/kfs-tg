@@ -475,6 +475,7 @@ impl App {
                     self.mode = Mode::Insert;
                     self.panel = Panel::Messages;
                 } else {
+                    self.status = format!("{} commands", cmds.len());
                     self.bot_commands = cmds;
                     self.cmd_cursor = 0;
                     self.cmd_visible = true;
@@ -804,6 +805,7 @@ impl App {
             let chat_id = chat.id;
             let client_id = self.client_id;
             let tx = self.event_tx.clone();
+            self.status = format!("Loading commands ({kind:?})...");
             tokio::spawn(async move {
                 let cmds = tg::get_bot_commands(chat_id, kind, client_id).await;
                 let _ = tx.send(AppEvent::BotCommandsLoaded(cmds));
