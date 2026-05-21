@@ -485,11 +485,7 @@ impl App {
                     self.chats.insert(0, chat.clone());
                     self.chat_cursor = 0;
                 } else {
-                    self.chat_cursor = self
-                        .chats
-                        .iter()
-                        .position(|c| c.id == chat.id)
-                        .unwrap_or(0);
+                    self.chat_cursor = self.chats.iter().position(|c| c.id == chat.id).unwrap_or(0);
                 }
                 self.select_chat();
                 self.status = format!("Opened: {}", chat.title);
@@ -926,7 +922,11 @@ impl App {
                 self.open_chat_query.clear();
             }
             crossterm::event::KeyCode::Enter => {
-                let username = self.open_chat_query.trim().trim_start_matches('@').to_string();
+                let username = self
+                    .open_chat_query
+                    .trim()
+                    .trim_start_matches('@')
+                    .to_string();
                 self.open_chat_active = false;
                 self.open_chat_query.clear();
                 if !username.is_empty() {
