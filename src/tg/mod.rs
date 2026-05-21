@@ -431,6 +431,8 @@ pub async fn get_bot_commands(
 ) -> Vec<(String, String)> {
     // openChat forces TDLib to fetch fresh full info from server
     let _ = tdlib_rs::functions::open_chat(chat_id, client_id).await;
+    // Give TDLib time to fetch updated group info from server
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
     let result = match kind {
         ChatKind::Private { user_id } => {
             match tdlib_rs::functions::get_user_full_info(user_id, client_id).await {
