@@ -69,6 +69,7 @@ pub struct App {
     pub bot_commands: Vec<(String, String)>,
     pub cmd_cursor: usize,
     pub cmd_visible: bool,
+    pub cmd_filter: String,
     pub reply_to: Option<(i64, String)>,
     pub edit_msg: Option<i64>,
     pub confirm_delete: Option<i64>,
@@ -109,6 +110,7 @@ impl App {
             bot_commands: Vec::new(),
             cmd_cursor: 0,
             cmd_visible: false,
+            cmd_filter: String::new(),
             reply_to: None,
             edit_msg: None,
             confirm_delete: None,
@@ -478,6 +480,7 @@ impl App {
                     self.status = format!("{} commands", cmds.len());
                     self.bot_commands = cmds;
                     self.cmd_cursor = 0;
+                    self.cmd_filter.clear();
                     self.cmd_visible = true;
                 }
             }
@@ -710,30 +713,58 @@ impl App {
     }
 
     fn handle_cmd_key(&mut self, key: KeyEvent) -> bool {
+        let filtered = self.filtered_bot_commands();
         match key.code {
             crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down
-                if !self.bot_commands.is_empty() =>
+                if !filtered.is_empty() =>
             {
-                self.cmd_cursor = (self.cmd_cursor + 1).min(self.bot_commands.len() - 1);
+                self.cmd_cursor = (self.cmd_cursor + 1).min(filtered.len() - 1);
             }
             crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
                 self.cmd_cursor = self.cmd_cursor.saturating_sub(1);
             }
             crossterm::event::KeyCode::Enter => {
-                if let Some((cmd, _)) = self.bot_commands.get(self.cmd_cursor) {
+                let filtered = self.filtered_bot_commands();
+                if let Some((cmd, _)) = filtered.get(self.cmd_cursor) {
                     self.input = format!("/{cmd}");
                     self.input_cursor = self.input.len();
                     self.mode = Mode::Insert;
                     self.panel = Panel::Messages;
                 }
                 self.cmd_visible = false;
+                self.cmd_filter.clear();
             }
             crossterm::event::KeyCode::Esc | crossterm::event::KeyCode::Char('q') => {
                 self.cmd_visible = false;
+                self.cmd_filter.clear();
+            }
+            crossterm::event::KeyCode::Backspace => {
+                self.cmd_filter.pop();
+                self.cmd_cursor = 0;
+            }
+            crossterm::event::KeyCode::Char(c)
+                if c.is_alphanumeric() || c == '_' =>
+            {
+                self.cmd_filter.push(c);
+                self.cmd_cursor = 0;
             }
             _ => {}
         }
         false
+    }
+
+    pub fn filtered_bot_commands(&self) -> Vec<(String, String)> {
+        if self.cmd_filter.is_empty() {
+            return self.bot_commands.clone();
+        }
+        let q = self.cmd_filter.to_lowercase();
+        self.bot_commands
+            .iter()
+            .filter(|(cmd, desc)| {
+                cmd.to_lowercase().contains(&q) || desc.to_lowercase().contains(&q)
+            })
+            .cloned()
+            .collect()
     }
 
     fn start_forward(&mut self) {

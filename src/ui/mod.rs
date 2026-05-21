@@ -239,15 +239,15 @@ fn draw_help(frame: &mut Frame, area: Rect) {
 fn draw_commands(frame: &mut Frame, app: &App, area: Rect) {
     use ratatui::text::{Line, Span};
 
-    let max_cmd_len = app
-        .bot_commands
+    let filtered = app.filtered_bot_commands();
+
+    let max_cmd_len = filtered
         .iter()
         .map(|(c, _)| c.len() + 1)
         .max()
         .unwrap_or(8);
 
-    let lines: Vec<Line> = app
-        .bot_commands
+    let lines: Vec<Line> = filtered
         .iter()
         .enumerate()
         .map(|(i, (cmd, desc))| {
@@ -264,7 +264,13 @@ fn draw_commands(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let h = (app.bot_commands.len() as u16 + 2).min(area.height.saturating_sub(4));
+    let title = if app.cmd_filter.is_empty() {
+        " Bot Commands (Enter:select Esc:close) ".to_string()
+    } else {
+        format!(" /{} ", app.cmd_filter)
+    };
+
+    let h = (filtered.len() as u16 + 2).min(area.height.saturating_sub(4));
     let w = 50_u16.min(area.width.saturating_sub(4));
     let x = area.width.saturating_sub(w) / 2;
     let y = area.height.saturating_sub(h) / 2;
@@ -274,7 +280,7 @@ fn draw_commands(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow))
-        .title(" Bot Commands (Enter:select Esc:close) ");
+        .title(title);
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup);
 }
