@@ -9,6 +9,11 @@ use crate::app::{App, Panel, Screen};
 use crate::keys::Mode;
 
 pub fn draw(frame: &mut Frame, app: &mut App) {
+    if app.detail_view.is_some() {
+        draw_detail(frame, app, frame.area());
+        return;
+    }
+
     let inner_width = frame.area().width.saturating_sub(2) as usize;
     let input_lines = if app.input.is_empty() || inner_width == 0 {
         1u16
@@ -241,11 +246,7 @@ fn draw_commands(frame: &mut Frame, app: &App, area: Rect) {
 
     let filtered = app.filtered_bot_commands();
 
-    let max_cmd_len = filtered
-        .iter()
-        .map(|(c, _)| c.len() + 1)
-        .max()
-        .unwrap_or(8);
+    let max_cmd_len = filtered.iter().map(|(c, _)| c.len() + 1).max().unwrap_or(8);
 
     let lines: Vec<Line> = filtered
         .iter()
@@ -316,4 +317,42 @@ fn draw_forward_picker(frame: &mut Frame, app: &App, area: Rect) {
         .title(" Forward to (Enter:send Esc:cancel) ");
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, popup);
+}
+
+fn draw_detail(frame: &mut Frame, app: &mut App, area: Rect) {
+    let msg = match app.detail_view.and_then(|i| app.messages.get(i)) {
+        Some(m) => m,
+        None => {
+            app.detail_view = None;
+            return;
+        }
+    };
+
+    let sender = if msg.is_outgoing {
+        "You"
+    } else {
+        &msg.sender_name
+    };
+    let header = format!("[{}] {sender}", messages::format_ts_pub(msg.timestamp));
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan))
+        .title(format!(" {header} (j/k:scroll Esc:close) "));
+
+    let inner_w = area.width.saturating_sub(2) as usize;
+    let lines = messages::wrap_text_pub(&msg.text, inner_w);
+    let total_lines = lines.len() as u16;
+    let visible = area.height.saturating_sub(2);
+
+    let max_scroll = total_lines.saturating_sub(visible);
+    if app.detail_scroll > max_scroll {
+        app.detail_scroll = max_scroll;
+    }
+
+    let text = ratatui::text::Text::from(lines);
+    let paragraph = Paragraph::new(text)
+        .block(block)
+        .scroll((app.detail_scroll, 0));
+    frame.render_widget(paragraph, area);
 }

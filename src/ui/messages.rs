@@ -68,20 +68,17 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
         };
 
         let lines = wrap_text(&text, inner_width);
-        let max_chunk = 20;
-        if lines.len() <= max_chunk {
+        let max_display_lines = 20;
+        if lines.len() <= max_display_lines {
             items.push(ListItem::new(Text::from(lines)).style(style));
         } else {
-            for (ci, chunk) in lines.chunks(max_chunk).enumerate() {
-                let mut chunk_lines: Vec<Line<'static>> = chunk.to_vec();
-                if ci > 0 {
-                    chunk_lines.insert(
-                        0,
-                        Line::from("  ┈┈┈").style(Style::default().fg(Color::DarkGray)),
-                    );
-                }
-                items.push(ListItem::new(Text::from(chunk_lines)).style(style));
-            }
+            let remaining = lines.len() - max_display_lines;
+            let mut truncated = lines[..max_display_lines].to_vec();
+            truncated.push(
+                Line::from(format!("  ... (+{remaining} lines, Enter to read)"))
+                    .style(Style::default().fg(Color::DarkGray)),
+            );
+            items.push(ListItem::new(Text::from(truncated)).style(style));
         }
     }
 
@@ -102,6 +99,14 @@ pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
 
     app.msg_list_state.select(display_idx);
     frame.render_stateful_widget(list, area, &mut app.msg_list_state);
+}
+
+pub fn format_ts_pub(ts: i64) -> String {
+    format_ts(ts)
+}
+
+pub fn wrap_text_pub(text: &str, width: usize) -> Vec<Line<'static>> {
+    wrap_text(text, width)
 }
 
 fn format_ts(ts: i64) -> String {

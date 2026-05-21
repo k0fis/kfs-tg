@@ -85,6 +85,8 @@ pub struct App {
     pub loading_older: bool,
     pub msg_list_state: ListState,
     pub unread_from_id: Option<i64>,
+    pub detail_view: Option<usize>,
+    pub detail_scroll: u16,
 }
 
 impl App {
@@ -126,10 +128,16 @@ impl App {
             loading_older: false,
             msg_list_state: ListState::default(),
             unread_from_id: None,
+            detail_view: None,
+            detail_scroll: 0,
         }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+        if self.detail_view.is_some() {
+            return self.handle_detail_key(key);
+        }
+
         if self.help_visible {
             self.help_visible = false;
             return false;
@@ -170,7 +178,14 @@ impl App {
             Action::MoveUp => self.move_up(),
             Action::MoveLeft => self.panel = Panel::ChatList,
             Action::MoveRight => self.panel = Panel::Messages,
-            Action::Enter => self.select_chat(),
+            Action::Enter => {
+                if self.panel == Panel::Messages && !self.messages.is_empty() {
+                    self.detail_view = Some(self.msg_cursor);
+                    self.detail_scroll = 0;
+                } else {
+                    self.select_chat();
+                }
+            }
             Action::EnterInsert => {
                 self.mode = Mode::Insert;
                 self.panel = Panel::Messages;
@@ -712,6 +727,44 @@ impl App {
         false
     }
 
+    fn handle_detail_key(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            crossterm::event::KeyCode::Esc
+            | crossterm::event::KeyCode::Char('q')
+            | crossterm::event::KeyCode::Enter => {
+                self.detail_view = None;
+            }
+            crossterm::event::KeyCode::Char('j') | crossterm::event::KeyCode::Down => {
+                self.detail_scroll = self.detail_scroll.saturating_add(1);
+            }
+            crossterm::event::KeyCode::Char('k') | crossterm::event::KeyCode::Up => {
+                self.detail_scroll = self.detail_scroll.saturating_sub(1);
+            }
+            crossterm::event::KeyCode::Char('d')
+                if key
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+            {
+                self.detail_scroll = self.detail_scroll.saturating_add(10);
+            }
+            crossterm::event::KeyCode::Char('u')
+                if key
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+            {
+                self.detail_scroll = self.detail_scroll.saturating_sub(10);
+            }
+            crossterm::event::KeyCode::Char('g') => {
+                self.detail_scroll = 0;
+            }
+            crossterm::event::KeyCode::Char('G') => {
+                self.detail_scroll = u16::MAX;
+            }
+            _ => {}
+        }
+        false
+    }
+
     fn handle_cmd_key(&mut self, key: KeyEvent) -> bool {
         let filtered = self.filtered_bot_commands();
         match key.code {
@@ -742,9 +795,7 @@ impl App {
                 self.cmd_filter.pop();
                 self.cmd_cursor = 0;
             }
-            crossterm::event::KeyCode::Char(c)
-                if c.is_alphanumeric() || c == '_' =>
-            {
+            crossterm::event::KeyCode::Char(c) if c.is_alphanumeric() || c == '_' => {
                 self.cmd_filter.push(c);
                 self.cmd_cursor = 0;
             }
