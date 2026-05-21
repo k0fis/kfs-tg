@@ -424,8 +424,14 @@ pub async fn submit_password(password: &str, client_id: i32) -> anyhow::Result<(
     Ok(())
 }
 
-pub async fn get_bot_commands(kind: ChatKind, client_id: i32) -> Vec<(String, String)> {
-    match kind {
+pub async fn get_bot_commands(
+    chat_id: i64,
+    kind: ChatKind,
+    client_id: i32,
+) -> Vec<(String, String)> {
+    // openChat forces TDLib to fetch fresh full info from server
+    let _ = tdlib_rs::functions::open_chat(chat_id, client_id).await;
+    let result = match kind {
         ChatKind::Private { user_id } => {
             match tdlib_rs::functions::get_user_full_info(user_id, client_id).await {
                 Ok(tdlib_rs::enums::UserFullInfo::UserFullInfo(info)) => info
@@ -461,7 +467,9 @@ pub async fn get_bot_commands(kind: ChatKind, client_id: i32) -> Vec<(String, St
             }
         }
         ChatKind::Channel => Vec::new(),
-    }
+    };
+    let _ = tdlib_rs::functions::close_chat(chat_id, client_id).await;
+    result
 }
 
 async fn resolve_sender_name(msg: &mut Message, client_id: i32) {

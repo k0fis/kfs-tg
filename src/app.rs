@@ -801,10 +801,11 @@ impl App {
                 self.panel = Panel::Messages;
                 return;
             }
+            let chat_id = chat.id;
             let client_id = self.client_id;
             let tx = self.event_tx.clone();
             tokio::spawn(async move {
-                let cmds = tg::get_bot_commands(kind, client_id).await;
+                let cmds = tg::get_bot_commands(chat_id, kind, client_id).await;
                 let _ = tx.send(AppEvent::BotCommandsLoaded(cmds));
             });
         }
