@@ -1,0 +1,116 @@
+name: AI Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      focus:
+        description: 'Focus area'
+        required: true
+        default: 'general'
+        type: choice
+        options:
+          - general
+          - security
+          - performance
+          - error-handling
+      path:
+        description: 'Path to audit (e.g. src/ or . for all)'
+        required: true
+        default: '.'
+      prompt:
+        description: 'Additional instructions (optional)'
+        required: false
+        default: ''
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect source files
+        run: |
+          find ${{ github.event.inputs.path }} \
+            -type f \( -name '*.go' -o -name '*.js' -o -name '*.py' -o -name '*.html' -o -name '*.css' -o -name '*.yml' -o -name '*.yaml' -o -name '*.sh' \) \
+            ! -path '*/vendor/*' ! -path '*/node_modules/*' ! -path '*/lib/*' ! -path '*/.git/*' \
+            -exec cat {} + | head -c 200000 > /tmp/source.txt
+          wc -c /tmp/source.txt
+
+      - name: AI Audit
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          FOCUS="${{ github.event.inputs.focus }}"
+          EXTRA="${{ github.event.inputs.prompt }}"
+
+          case "$FOCUS" in
+            security)
+              SYSTEM="You are a security auditor. Analyze the code for vulnerabilities: injection (SQL, command, XSS), auth bypasses, sensitive data exposure, path traversal, SSRF, insecure crypto. Report findings with file/line references and severity (critical/high/medium/low). No false positives — only report issues you are confident about."
+              ;;
+            performance)
+              SYSTEM="You are a performance engineer. Analyze the code for: N+1 queries, missing indexes usage, unnecessary allocations, blocking operations, inefficient algorithms, resource leaks. Report with file references and estimated impact."
+              ;;
+            error-handling)
+              SYSTEM="You are a reliability engineer. Analyze the code for: swallowed errors, missing error checks, panics in production paths, missing cleanup/defer, race conditions, resource leaks. Report with file references."
+              ;;
+            *)
+              SYSTEM="You are a senior software engineer doing a code audit. Report: bugs, security issues, performance problems, error handling gaps, and design concerns. Be concise and actionable. Skip style issues."
+              ;;
+          esac
+
+          if [ -n "$EXTRA" ]; then
+            SYSTEM="$SYSTEM Additional focus: $EXTRA"
+          fi
+
+          jq -n --arg system "$SYSTEM" --rawfile source /tmp/source.txt '{
+            "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "messages": [
+              {"role": "system", "content": $system},
+              {"role": "user", "content": ("Audit this codebase:\n\n" + $source)}
+            ],
+            "max_tokens": 4000
+          }' > /tmp/request.json
+
+          RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
+            -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+            -H "Content-Type: application/json" \
+            --max-time 600 \
+            -d @/tmp/request.json)
+
+          if echo "$RESPONSE" | jq -e '.choices[0].message.content' > /dev/null 2>&1; then
+            echo "$RESPONSE" | jq -r '.choices[0].message.content' > /tmp/audit.md
+          else
+            echo "Audit failed. API response:" > /tmp/audit.md
+            echo '```json' >> /tmp/audit.md
+            echo "$RESPONSE" | head -c 2000 >> /tmp/audit.md
+            echo '```' >> /tmp/audit.md
+            cat /tmp/audit.md
+            exit 1
+          fi
+          cat /tmp/audit.md
+
+      - name: Create issue with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              body = fs.readFileSync('/tmp/audit.md', 'utf8');
+            } catch {
+              body = 'Audit did not produce output.';
+            }
+            const focus = '${{ github.event.inputs.focus }}';
+            const path = '${{ github.event.inputs.path }}';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `AI Audit: ${focus} (${path})`,
+              body: `## AI Audit Results\n\n**Focus:** ${focus}\n**Path:** ${path}\n**Model:** Nemotron 3 Ultra\n\n---\n\n${body}`,
+              labels: ['ai-audit'],
+            });
