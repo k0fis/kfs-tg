@@ -1,0 +1,6 @@
+# API credentials for development builds.
+# For release builds, set these as GitHub Actions secrets.
+# Get your own at https://my.telegram.org/apps
+[env]
+KFS_TG_API_ID = "38819438"
+KFS_TG_API_HASH = "9bd9f9cd6b4573feea86afcd1e205373"
