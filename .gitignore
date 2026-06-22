@@ -1,5 +1,17 @@
-/target
+# Binaries
+kfs-tg
+kfs-tg-*
+*.exe
+
+# Go
+vendor/
+
+# Rust (archived)
+_rust/target/
+
+# Editor
 *.swp
 *.swo
+
+# OS
 .DS_Store
-.cargo/config.toml

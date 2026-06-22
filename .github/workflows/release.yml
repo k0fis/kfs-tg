@@ -2,113 +2,81 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
 
 permissions:
   contents: write
 
 jobs:
   build:
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: kfs-tg-linux-amd64
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            name: kfs-tg-macos-amd64
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            name: kfs-tg-macos-arm64
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            name: kfs-tg-windows-amd64.exe
-
-    runs-on: ${{ matrix.os }}
-
+          - {goos: darwin, goarch: arm64, name: kfs-tg-macos-arm64}
+          - {goos: linux, goarch: amd64, name: kfs-tg-linux-amd64}
+          - {goos: windows, goarch: amd64, name: kfs-tg-windows-amd64.exe}
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev zlib1g-dev libc++-dev libc++abi-dev
-
+          go-version: '1.23'
       - name: Build
         env:
-          KFS_TG_API_ID: ${{ secrets.TG_API_ID }}
-          KFS_TG_API_HASH: ${{ secrets.TG_API_HASH }}
-        run: cargo build --release --target ${{ matrix.target }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          go build -ldflags "-X main.version=$VERSION" -o ${{ matrix.name }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
 
-      - name: Rename binary (Unix)
-        if: runner.os != 'Windows'
-        run: cp target/${{ matrix.target }}/release/kfs-tg ${{ matrix.name }}
-
-      - name: Rename binary (Windows)
-        if: runner.os == 'Windows'
-        run: cp target/${{ matrix.target }}/release/kfs-tg.exe ${{ matrix.name }}
-
+  deb:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kfs-tg-linux-amd64
       - name: Build .deb
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           mkdir -p pkg/DEBIAN pkg/usr/bin
-          cp target/${{ matrix.target }}/release/kfs-tg pkg/usr/bin/
+          cp kfs-tg-linux-amd64 pkg/usr/bin/kfs-tg
+          chmod +x pkg/usr/bin/kfs-tg
           cat > pkg/DEBIAN/control << EOF
           Package: kfs-tg
           Version: ${VERSION}
           Architecture: amd64
           Maintainer: k0fis <k0fis@users.noreply.github.com>
           Description: Minimalist TUI Telegram client
-          Depends: libssl3, zlib1g
           EOF
           sed -i 's/^          //' pkg/DEBIAN/control
           dpkg-deb --build pkg "kfs-tg_${VERSION}_amd64.deb"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
-
-      - name: Upload .deb artifact
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
           name: kfs-tg-deb
-          path: kfs-tg_*_amd64.deb
+          path: "kfs-tg_*_amd64.deb"
 
   release:
-    needs: build
+    needs: [build, deb]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/**/*
+          files: artifacts/**/*
           generate_release_notes: true
 
   homebrew:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - name: Update Homebrew tap
-        uses: peter-evans/repository-dispatch@v3
+      - uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.TAP_TOKEN }}
           repository: k0fis/homebrew-tap
@@ -117,7 +85,6 @@ jobs:
             {
               "formula": "kfs-tg",
               "version": "${{ github.ref_name }}",
-              "macos_amd64_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg-macos-amd64",
               "macos_arm64_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg-macos-arm64",
               "linux_amd64_url": "https://github.com/k0fis/kfs-tg/releases/download/${{ github.ref_name }}/kfs-tg-linux-amd64"
             }
@@ -126,12 +93,9 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - name: Derive version
-        id: ver
+      - id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Update APT repo
-        uses: peter-evans/repository-dispatch@v3
+      - uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.TAP_TOKEN }}
           repository: k0fis/apt
