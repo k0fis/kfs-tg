@@ -34,8 +34,9 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load(cli.config.as_deref())?;
 
     // Suppress TDLib stderr logging before creating client
-    #[cfg(unix)]
-    suppress_stderr();
+    // Temporarily disabled for debugging — uncomment when stable
+    // #[cfg(unix)]
+    // suppress_stderr();
 
     let client_id = tdlib_rs::create_client();
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
@@ -78,8 +79,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        while let Ok(ev) = event_rx.try_recv() {
-            app.handle_event(ev);
+        // Process at most 50 events per frame to keep UI responsive
+        for _ in 0..50 {
+            match event_rx.try_recv() {
+                Ok(ev) => app.handle_event(ev),
+                Err(_) => break,
+            }
         }
     }
 
@@ -89,6 +94,12 @@ async fn main() -> anyhow::Result<()> {
         LeaveAlternateScreen,
         DisableBracketedPaste
     )?;
+
+    // Cleanly close TDLib (flushes SQLite WAL, releases file lock)
+    let _ = tdlib_rs::functions::close(client_id).await;
+    // Give TDLib a moment to finish cleanup
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     std::process::exit(0);
 }
 

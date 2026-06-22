@@ -125,6 +125,7 @@ fn handle_auth_state(
 
     match state {
         AuthorizationState::WaitTdlibParameters => {
+            eprintln!("[kfs-tg] auth: WaitTdlibParameters — setting params...");
             let data_dir = Config::data_dir().to_string_lossy().to_string();
             let api_id = config.general.effective_api_id();
             let api_hash = config.general.effective_api_hash();
@@ -160,11 +161,14 @@ fn handle_auth_state(
             let _ = tx.send(AppEvent::AuthStatePassword);
         }
         AuthorizationState::Ready => {
+            eprintln!("[kfs-tg] auth: Ready!");
             let _ = tx.send(AppEvent::AuthStateReady);
             let tx2 = tx.clone();
             let tx3 = tx.clone();
+            tracing::info!("TDLib authorized, loading chats...");
             tokio::spawn(async move {
                 load_chats(client_id, &tx2).await;
+                tracing::info!("Chats loaded");
             });
             tokio::spawn(async move {
                 load_folders(client_id, &tx3).await;
@@ -176,7 +180,9 @@ fn handle_auth_state(
 
 async fn load_chats(client_id: i32, tx: &mpsc::UnboundedSender<AppEvent>) {
     // Load first batch of chats
+    eprintln!("[kfs-tg] load_chats: calling load_chats API...");
     let _ = tdlib_rs::functions::load_chats(None, 30, client_id).await;
+    eprintln!("[kfs-tg] load_chats: calling get_chats...");
 
     match tdlib_rs::functions::get_chats(None, 30, client_id).await {
         Ok(tdlib_rs::enums::Chats::Chats(chats_obj)) => {
