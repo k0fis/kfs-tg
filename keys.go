@@ -118,9 +118,6 @@ func mapInsert(msg tea.KeyPressMsg) Action {
 	case "backspace":
 		return ActionBackspace
 	}
-	// Any printable character
-	if len(key) == 1 || (len(msg.Text) > 0) {
-		return ActionChar
-	}
-	return ActionNone
+	// Everything else is a character for the textarea
+	return ActionChar
 }

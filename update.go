@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -131,28 +133,36 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode = ModeNormal
 		m.input.Blur()
 
-	case ActionChar:
-		if m.mode == ModeInsert {
-			var cmd tea.Cmd
-			m.input, cmd = m.input.Update(msg)
-			return m, cmd
-		}
-	case ActionBackspace:
-		if m.mode == ModeInsert {
-			var cmd tea.Cmd
-			m.input, cmd = m.input.Update(msg)
-			return m, cmd
-		}
 	case ActionSendMessage:
 		if m.mode == ModeInsert && len(m.chats) > 0 {
 			text := m.input.Value()
 			if text != "" {
 				chat := m.chats[m.chatCursor]
 				go m.tg.SendMessage(chat.ID, chat.AccessHash, chat.IsChannel, text)
+				// Optimistic: add message locally
+				m.messages = append(m.messages, Message{
+					Text:       text,
+					Timestamp:  time.Now(),
+					IsOutgoing: true,
+				})
+				m.updateMsgView()
 				m.input.Reset()
 			}
 			m.mode = ModeNormal
 			m.input.Blur()
+		}
+	case ActionNewLine:
+		if m.mode == ModeInsert {
+			var cmd tea.Cmd
+			m.input, cmd = m.input.Update(msg)
+			return m, cmd
+		}
+
+	case ActionChar, ActionBackspace, ActionCursorLeft, ActionCursorRight:
+		if m.mode == ModeInsert {
+			var cmd tea.Cmd
+			m.input, cmd = m.input.Update(msg)
+			return m, cmd
 		}
 
 	case ActionPageDown:
