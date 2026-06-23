@@ -84,13 +84,19 @@ func (m Model) viewMain() string {
 	listWidth := m.config.UI.ChatListWidth
 	msgWidth := m.width - listWidth - 4 // borders
 
+	// Heights: total = chat list = msg panel + input + status
+	// status = 1 line, input = 3 lines (with border), rest = messages
+	inputHeight := 3
+	statusHeight := 1
+	msgHeight := m.height - inputHeight - statusHeight - 4 // 4 = borders overhead
+
 	// Chat list
-	chatContent := m.renderChatList(listWidth-2, m.height-4)
+	chatContent := m.renderChatList(listWidth-2, m.height-statusHeight-2)
 	chatStyle := styleBorderInactive
 	if m.panel == PanelChatList {
 		chatStyle = styleBorderActive
 	}
-	leftPanel := chatStyle.Width(listWidth).Height(m.height - 3).Render(chatContent)
+	leftPanel := chatStyle.Width(listWidth).Height(m.height - statusHeight - 2).Render(chatContent)
 
 	// Messages + input
 	msgContent := m.msgView.View()
@@ -100,8 +106,8 @@ func (m Model) viewMain() string {
 	if m.panel == PanelMessages {
 		msgStyle = styleBorderActive
 	}
-	msgPanel := msgStyle.Width(msgWidth).Height(m.height - 8).Render(msgContent)
-	inputPanel := styleBorderInactive.Width(msgWidth).Height(3).Render(inputContent)
+	msgPanel := msgStyle.Width(msgWidth).Height(msgHeight).Render(msgContent)
+	inputPanel := styleBorderInactive.Width(msgWidth).Height(inputHeight).Render(inputContent)
 
 	rightPanel := lipgloss.JoinVertical(lipgloss.Left, msgPanel, inputPanel)
 
@@ -112,8 +118,12 @@ func (m Model) viewMain() string {
 	if m.mode == ModeInsert {
 		modeStr = "INSERT"
 	}
+	chatName := ""
+	if len(m.chats) > 0 {
+		chatName = m.chats[m.chatCursor].Title
+	}
 	status := styleStatusBar.Width(m.width).Render(
-		fmt.Sprintf(" [%s] %s", modeStr, m.status),
+		fmt.Sprintf(" [%s] %s  %s", modeStr, chatName, m.status),
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, main, status)
