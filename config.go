@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -15,6 +16,39 @@ type Config struct {
 type GeneralConfig struct {
 	ApiID   int    `toml:"api_id"`
 	ApiHash string `toml:"api_hash"`
+}
+
+// Compile-time defaults (injected via -ldflags "-X main.defaultApiID=..." in CI)
+var (
+	defaultApiID   = ""
+	defaultApiHash = ""
+)
+
+func (g *GeneralConfig) EffectiveApiID() int {
+	if g.ApiID != 0 {
+		return g.ApiID
+	}
+	if defaultApiID != "" {
+		var id int
+		fmt.Sscanf(defaultApiID, "%d", &id)
+		return id
+	}
+	if v := os.Getenv("KFS_TG_API_ID"); v != "" {
+		var id int
+		fmt.Sscanf(v, "%d", &id)
+		return id
+	}
+	return 0
+}
+
+func (g *GeneralConfig) EffectiveApiHash() string {
+	if g.ApiHash != "" {
+		return g.ApiHash
+	}
+	if defaultApiHash != "" {
+		return defaultApiHash
+	}
+	return os.Getenv("KFS_TG_API_HASH")
 }
 
 type UIConfig struct {

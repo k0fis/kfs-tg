@@ -46,8 +46,8 @@ func (tc *TelegramClient) Start(ctx context.Context) error {
 	storage := &session.FileStorage{Path: sessionPath}
 
 	tc.client = telegram.NewClient(
-		tc.cfg.General.ApiID,
-		tc.cfg.General.ApiHash,
+		tc.cfg.General.EffectiveApiID(),
+		tc.cfg.General.EffectiveApiHash(),
 		telegram.Options{
 			SessionStorage: storage,
 			UpdateHandler:  telegram.UpdateHandlerFunc(tc.handleUpdates),
