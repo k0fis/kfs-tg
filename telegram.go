@@ -245,19 +245,53 @@ func (tc *TelegramClient) SendMessage(chatID int64, accessHash int64, isChannel 
 		peer = &tg.InputPeerChat{ChatID: -chatID}
 	}
 
-	req := &tg.MessagesSendMessageRequest{
-		Peer:     peer,
-		Message:  text,
-		RandomID: rand.Int63(),
+	// Telegram limit is 4096 chars per message — split if needed
+	chunks := splitMessage(text, 4096)
+	for i, chunk := range chunks {
+		req := &tg.MessagesSendMessageRequest{
+			Peer:     peer,
+			Message:  chunk,
+			RandomID: rand.Int63(),
+		}
+		// Only first chunk gets replyTo
+		if i == 0 && replyTo > 0 {
+			req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: int(replyTo)}
+		}
+
+		_, err := tc.api.MessagesSendMessage(ctx, req)
+		if err != nil {
+			tc.events <- MsgError{Err: fmt.Sprintf("send: %v", err)}
+			return
+		}
 	}
-	if replyTo > 0 {
-		req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: int(replyTo)}
+}
+
+// splitMessage splits text into chunks of at most maxLen runes,
+// preferring to break at newlines.
+func splitMessage(text string, maxLen int) []string {
+	runes := []rune(text)
+	if len(runes) <= maxLen {
+		return []string{text}
 	}
 
-	_, err := tc.api.MessagesSendMessage(ctx, req)
-	if err != nil {
-		tc.events <- MsgError{Err: fmt.Sprintf("send: %v", err)}
+	var chunks []string
+	for len(runes) > 0 {
+		if len(runes) <= maxLen {
+			chunks = append(chunks, string(runes))
+			break
+		}
+		// Find last newline before limit
+		cut := maxLen
+		for i := maxLen - 1; i > maxLen/2; i-- {
+			if runes[i] == '\n' {
+				cut = i + 1
+				break
+			}
+		}
+		chunks = append(chunks, string(runes[:cut]))
+		runes = runes[cut:]
 	}
+	return chunks
 }
 
 func (tc *TelegramClient) DeleteMessage(chatID int64, accessHash int64, isChannel bool, msgID int64) {
