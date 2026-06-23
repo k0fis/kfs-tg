@@ -136,7 +136,7 @@ func (m Model) renderChatList(width, height int) string {
 	}
 
 	var sb strings.Builder
-	visible := height
+	visible := height - 2 // reserve space for version label
 	start := 0
 	if m.chatCursor >= visible {
 		start = m.chatCursor - visible + 1

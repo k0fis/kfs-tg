@@ -24,9 +24,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		msgWidth := m.width - m.config.UI.ChatListWidth - 6
+		msgWidth := m.width - m.config.UI.ChatListWidth - 8 // borders + padding
 		m.msgView.SetWidth(msgWidth)
-		m.msgView.SetHeight(m.height - 10)
+		m.msgView.SetHeight(m.height - 12)
 		m.input.SetWidth(msgWidth)
 		return m, nil
 
@@ -122,10 +122,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case ActionMoveDown:
 		if m.panel == PanelChatList && m.chatCursor < len(m.chats)-1 {
 			m.chatCursor++
+		} else if m.panel == PanelMessages {
+			m.msgView.HalfPageDown()
 		}
 	case ActionMoveUp:
 		if m.panel == PanelChatList && m.chatCursor > 0 {
 			m.chatCursor--
+		} else if m.panel == PanelMessages {
+			m.msgView.HalfPageUp()
 		}
 	case ActionMoveRight, ActionEnter:
 		if m.panel == PanelChatList && len(m.chats) > 0 {
