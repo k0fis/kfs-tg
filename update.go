@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -38,10 +39,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.msgView.SetWidth(innerW)
 		m.msgView.SetHeight(innerH)
 		m.input.SetWidth(innerW)
+		m.input.SetHeight(2)
 		return m, nil
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		if m.mode == ModeInsert {
+			var cmd tea.Cmd
+			m.input, cmd = m.input.Update(msg)
+			return m, cmd
+		}
 
 	case MsgNeedAuth:
 		m.screen = ScreenLogin
@@ -122,6 +131,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleLoginKey(msg)
 	}
 
+	// Search mode handling
+	if m.searching {
+		return m.handleSearchKey(msg)
+	}
+
 	action := MapKey(msg, m.mode)
 
 	switch action {
@@ -130,50 +144,88 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case ActionMoveDown:
-		if m.panel == PanelChatList && m.chatCursor < len(m.chats)-1 {
-			m.chatCursor++
-		} else if m.panel == PanelMessages {
-			m.msgView.HalfPageDown()
+		if m.panel == PanelChatList {
+			chats := m.filteredChats()
+			if m.chatCursor < len(chats)-1 {
+				m.chatCursor++
+			}
+		} else if m.panel == PanelMessages && len(m.messages) > 0 {
+			if m.msgCursor < len(m.messages)-1 {
+				m.msgCursor++
+			}
+			m.updateMsgView()
 		}
 	case ActionMoveUp:
 		if m.panel == PanelChatList && m.chatCursor > 0 {
 			m.chatCursor--
-		} else if m.panel == PanelMessages {
-			m.msgView.HalfPageUp()
+		} else if m.panel == PanelMessages && len(m.messages) > 0 {
+			if m.msgCursor > 0 {
+				m.msgCursor--
+			}
+			m.updateMsgView()
 		}
 	case ActionMoveRight, ActionEnter:
-		if m.panel == PanelChatList && len(m.chats) > 0 {
-			// Load messages for selected chat
-			m.panel = PanelMessages
-			chat := m.chats[m.chatCursor]
-			go m.tg.LoadMessages(chat.ID, chat.AccessHash, chat.IsChannel)
+		if m.panel == PanelChatList {
+			chats := m.filteredChats()
+			if len(chats) > 0 && m.chatCursor < len(chats) {
+				// Load messages for selected chat
+				m.panel = PanelMessages
+				m.msgCursor = -1
+				m.replyTo = 0
+				chat := chats[m.chatCursor]
+				go m.tg.LoadMessages(chat.ID, chat.AccessHash, chat.IsChannel)
+			}
 		} else {
 			m.panel = PanelMessages
 		}
 	case ActionMoveLeft:
 		m.panel = PanelChatList
+		m.replyTo = 0
 
 	case ActionEnterInsert:
 		m.mode = ModeInsert
 		m.input.Focus()
 	case ActionExitInsert:
 		m.mode = ModeNormal
+		m.replyTo = 0
 		m.input.Blur()
+
+	case ActionReply:
+		if m.panel == PanelMessages && m.msgCursor >= 0 && m.msgCursor < len(m.messages) {
+			m.replyTo = m.messages[m.msgCursor].ID
+			m.mode = ModeInsert
+			m.input.Focus()
+			m.status = fmt.Sprintf("Reply to: %s", truncate(m.messages[m.msgCursor].Text, 30))
+		}
 
 	case ActionSendMessage:
 		if m.mode == ModeInsert && len(m.chats) > 0 {
 			text := m.input.Value()
 			if text != "" {
 				chat := m.chats[m.chatCursor]
-				go m.tg.SendMessage(chat.ID, chat.AccessHash, chat.IsChannel, text)
-				// Optimistic: add message locally
-				m.messages = append(m.messages, Message{
-					Text:       text,
-					Timestamp:  time.Now(),
-					IsOutgoing: true,
-				})
+				if m.replyTo < 0 {
+					// Editing existing message
+					msgID := -m.replyTo
+					go m.tg.EditMessage(chat.ID, chat.AccessHash, chat.IsChannel, msgID, text)
+					// Optimistic update
+					for i := range m.messages {
+						if m.messages[i].ID == msgID {
+							m.messages[i].Text = text
+							break
+						}
+					}
+				} else {
+					go m.tg.SendMessage(chat.ID, chat.AccessHash, chat.IsChannel, text, m.replyTo)
+					// Optimistic: add message locally
+					m.messages = append(m.messages, Message{
+						Text:       text,
+						Timestamp:  time.Now(),
+						IsOutgoing: true,
+					})
+				}
 				m.updateMsgView()
 				m.input.Reset()
+				m.replyTo = 0
 			}
 			m.mode = ModeNormal
 			m.input.Blur()
@@ -196,12 +248,96 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.msgView.PageDown()
 	case ActionPageUp:
 		m.msgView.PageUp()
+
+	case ActionDelete:
+		if m.panel == PanelMessages && m.msgCursor >= 0 && m.msgCursor < len(m.messages) {
+			msg := m.messages[m.msgCursor]
+			if msg.IsOutgoing && msg.ID > 0 {
+				chat := m.chats[m.chatCursor]
+				go m.tg.DeleteMessage(chat.ID, chat.AccessHash, chat.IsChannel, msg.ID)
+				// Optimistic remove
+				m.messages = append(m.messages[:m.msgCursor], m.messages[m.msgCursor+1:]...)
+				if m.msgCursor >= len(m.messages) {
+					m.msgCursor = len(m.messages) - 1
+				}
+				m.updateMsgView()
+			} else {
+				m.status = "Can only delete own messages"
+			}
+		}
+
+	case ActionEditMsg:
+		if m.panel == PanelMessages && m.msgCursor >= 0 && m.msgCursor < len(m.messages) {
+			msg := m.messages[m.msgCursor]
+			if msg.IsOutgoing && msg.ID > 0 {
+				m.replyTo = -msg.ID // negative = editing (hack to reuse field)
+				m.mode = ModeInsert
+				m.input.SetValue(msg.Text)
+				m.input.Focus()
+				m.status = "Editing message..."
+			} else {
+				m.status = "Can only edit own messages"
+			}
+		}
+
 	case ActionRefresh:
 		go m.tg.loadChats(m.tg.ctx)
 		m.status = "Refreshing..."
+
+	case ActionSearch:
+		if m.panel == PanelChatList {
+			m.searching = true
+			m.searchQuery = ""
+			m.status = "/"
+		}
 	}
 
 	return m, nil
+}
+
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	switch key {
+	case "esc", "ctrl+c":
+		m.searching = false
+		m.searchQuery = ""
+		m.status = ""
+	case "enter":
+		m.searching = false
+		m.status = ""
+	case "backspace":
+		if len(m.searchQuery) > 0 {
+			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+			m.status = "/" + m.searchQuery
+			m.chatCursor = 0
+		} else {
+			m.searching = false
+			m.status = ""
+		}
+	default:
+		if len(key) == 1 {
+			m.searchQuery += key
+		} else if len(msg.Text) > 0 {
+			m.searchQuery += msg.Text
+		}
+		m.status = "/" + m.searchQuery
+		m.chatCursor = 0
+	}
+	return m, nil
+}
+
+func (m Model) filteredChats() []Chat {
+	if m.searchQuery == "" {
+		return m.chats
+	}
+	query := strings.ToLower(m.searchQuery)
+	var filtered []Chat
+	for _, c := range m.chats {
+		if strings.Contains(strings.ToLower(c.Title), query) {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
 }
 
 func (m *Model) updateMsgView() {
@@ -211,7 +347,7 @@ func (m *Model) updateMsgView() {
 	}
 
 	var content string
-	for _, msg := range m.messages {
+	for i, msg := range m.messages {
 		ts := msg.Timestamp.Format("15:04")
 		var line string
 		if msg.IsOutgoing {
@@ -219,10 +355,17 @@ func (m *Model) updateMsgView() {
 		} else {
 			line = ts + " " + msg.SenderName + ": " + msg.Text
 		}
-		content += wrapText(line, msgWidth) + "\n"
+		wrapped := wrapText(line, msgWidth)
+		if i == m.msgCursor {
+			// Highlight selected message
+			wrapped = "│ " + strings.ReplaceAll(wrapped, "\n", "\n│ ")
+		}
+		content += wrapped + "\n"
 	}
 	m.msgView.SetContent(content)
-	m.msgView.GotoBottom()
+	if m.msgCursor < 0 {
+		m.msgView.GotoBottom()
+	}
 }
 
 func wrapText(s string, width int) string {

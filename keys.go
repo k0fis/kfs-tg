@@ -7,6 +7,7 @@ type Mode int
 const (
 	ModeNormal Mode = iota
 	ModeInsert
+	ModeSearch
 )
 
 type Action int

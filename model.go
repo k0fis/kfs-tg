@@ -38,11 +38,15 @@ type Model struct {
 	// Chat list
 	chats      []Chat
 	chatCursor int
+	searchQuery string // active search filter
+	searching   bool   // in search mode
 
 	// Messages
-	messages []Message
-	msgView  viewport.Model
-	input    textarea.Model
+	messages   []Message
+	msgCursor  int // selected message index (-1 = none)
+	replyTo    int64 // message ID we're replying to (0 = no reply)
+	msgView    viewport.Model
+	input      textarea.Model
 
 	// Status
 	status string
@@ -56,6 +60,7 @@ func NewModel(cfg *Config) Model {
 	ti := textarea.New()
 	ti.Placeholder = "Type a message..."
 	ti.ShowLineNumbers = false
+	ti.SetHeight(2)
 
 	events := make(chan tea.Msg, 100)
 	tgClient := NewTelegramClient(cfg, events)
@@ -67,6 +72,7 @@ func NewModel(cfg *Config) Model {
 		mode:      ModeNormal,
 		status:    "Connecting...",
 		authState: "phone",
+		msgCursor: -1,
 		msgView:   viewport.New(),
 		input:     ti,
 		tg:        tgClient,

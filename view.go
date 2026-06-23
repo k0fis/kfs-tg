@@ -18,13 +18,13 @@ var (
 				BorderForeground(lipgloss.Color("8"))
 
 	styleStatusBar = lipgloss.NewStyle().
-			Background(lipgloss.Color("4")).
-			Foreground(lipgloss.Color("15")).
+			Background(lipgloss.Color("236")).
+			Foreground(lipgloss.Color("252")).
 			Padding(0, 1)
 
 	styleChatSelected = lipgloss.NewStyle().
-				Background(lipgloss.Color("4")).
-				Foreground(lipgloss.Color("15"))
+				Background(lipgloss.Color("238")).
+				Foreground(lipgloss.Color("252"))
 
 	styleChatUnread = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("2")).
@@ -134,18 +134,29 @@ func (m Model) viewMain() string {
 		modeStr = "INSERT"
 	}
 	chatName := ""
-	if len(m.chats) > 0 {
-		chatName = m.chats[m.chatCursor].Title
+	chats := m.filteredChats()
+	if len(chats) > 0 && m.chatCursor < len(chats) {
+		chatName = chats[m.chatCursor].Title
+	}
+	leftInfo := fmt.Sprintf(" [%s] %s", modeStr, chatName)
+	rightInfo := fmt.Sprintf("kfs-tg %s ", version)
+	gap := availW - len(leftInfo) - len(rightInfo)
+	if gap < 0 {
+		gap = 0
 	}
 	status := styleStatusBar.Width(availW).Render(
-		fmt.Sprintf(" [%s] %s │ kfs-tg %s", modeStr, chatName, version),
+		leftInfo + strings.Repeat(" ", gap) + rightInfo,
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, main, status)
 }
 
 func (m Model) renderChatList(width, height int) string {
-	if len(m.chats) == 0 {
+	chats := m.filteredChats()
+	if len(chats) == 0 {
+		if m.searchQuery != "" {
+			return "No matches"
+		}
 		return "No chats loaded"
 	}
 
@@ -156,8 +167,8 @@ func (m Model) renderChatList(width, height int) string {
 		start = m.chatCursor - visible + 1
 	}
 
-	for i := start; i < len(m.chats) && i-start < visible; i++ {
-		chat := m.chats[i]
+	for i := start; i < len(chats) && i-start < visible; i++ {
+		chat := chats[i]
 		line := truncate(chat.Title, width)
 
 		if chat.UnreadCount > 0 {

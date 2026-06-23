@@ -40,6 +40,7 @@ func NewTelegramClient(cfg *Config, events chan tea.Msg) *TelegramClient {
 
 // Start connects to Telegram and begins receiving updates.
 // Blocks until ctx is cancelled — run in a goroutine.
+// Automatically reconnects on connection loss with exponential backoff.
 func (tc *TelegramClient) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -49,48 +50,71 @@ func (tc *TelegramClient) Start(ctx context.Context) error {
 	sessionPath := filepath.Join(DataDir(), "session.json")
 	storage := &session.FileStorage{Path: sessionPath}
 
-	tc.client = telegram.NewClient(
-		tc.cfg.General.EffectiveApiID(),
-		tc.cfg.General.EffectiveApiHash(),
-		telegram.Options{
-			SessionStorage: storage,
-			UpdateHandler:  telegram.UpdateHandlerFunc(tc.handleUpdates),
-			Resolver:       dcs.Websocket(dcs.WebsocketOptions{}),
-		},
-	)
+	backoff := time.Second
+	maxBackoff := 30 * time.Second
 
-	return tc.client.Run(tc.ctx, func(ctx context.Context) error {
-		tc.api = tc.client.API()
+	for {
+		tc.client = telegram.NewClient(
+			tc.cfg.General.EffectiveApiID(),
+			tc.cfg.General.EffectiveApiHash(),
+			telegram.Options{
+				SessionStorage: storage,
+				UpdateHandler:  telegram.UpdateHandlerFunc(tc.handleUpdates),
+				Resolver:       dcs.Websocket(dcs.WebsocketOptions{}),
+			},
+		)
 
-		// Check auth status
-		status, err := tc.client.Auth().Status(ctx)
-		if err != nil {
-			return fmt.Errorf("auth status: %w", err)
-		}
+		err := tc.client.Run(tc.ctx, func(ctx context.Context) error {
+			tc.api = tc.client.API()
 
-		if !status.Authorized {
-			// Need to authenticate — auth callbacks will send MsgNeedAuth
-			if err := tc.authenticate(ctx); err != nil {
-				tc.events <- MsgError{Err: fmt.Sprintf("auth failed: %v", err)}
-				return err
+			// Check auth status
+			status, err := tc.client.Auth().Status(ctx)
+			if err != nil {
+				return fmt.Errorf("auth status: %w", err)
 			}
+
+			if !status.Authorized {
+				if err := tc.authenticate(ctx); err != nil {
+					tc.events <- MsgError{Err: fmt.Sprintf("auth failed: %v", err)}
+					return err
+				}
+			}
+
+			// Get self
+			self, err := tc.client.Self(ctx)
+			if err == nil {
+				tc.selfID = self.ID
+			}
+
+			tc.events <- MsgAuthReady{}
+			backoff = time.Second // reset on successful connection
+
+			// Load initial chats
+			tc.loadChats(ctx)
+
+			// Block until cancelled
+			<-ctx.Done()
+			return nil
+		})
+
+		// If context was cancelled, we're shutting down
+		if tc.ctx.Err() != nil {
+			return err
 		}
 
-		// Get self
-		self, err := tc.client.Self(ctx)
-		if err == nil {
-			tc.selfID = self.ID
+		// Connection lost — notify UI and retry
+		tc.events <- MsgError{Err: fmt.Sprintf("disconnected, reconnecting in %s...", backoff)}
+
+		select {
+		case <-time.After(backoff):
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		case <-tc.ctx.Done():
+			return nil
 		}
-
-		tc.events <- MsgAuthReady{}
-
-		// Load initial chats
-		tc.loadChats(ctx)
-
-		// Block until cancelled (updates come via handler)
-		<-ctx.Done()
-		return nil
-	})
+	}
 }
 
 func (tc *TelegramClient) Stop() {
@@ -188,14 +212,25 @@ func (tc *TelegramClient) LoadMessages(chatID int64, accessHash int64, isChannel
 	// Mark messages as read
 	if len(messages) > 0 {
 		maxID := int(messages[len(messages)-1].ID)
-		tc.api.MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{
-			Peer:  peer,
-			MaxID: maxID,
-		})
+		var err error
+		if isChannel {
+			_, err = tc.api.ChannelsReadHistory(ctx, &tg.ChannelsReadHistoryRequest{
+				Channel: &tg.InputChannel{ChannelID: chatID, AccessHash: accessHash},
+				MaxID:   maxID,
+			})
+		} else {
+			_, err = tc.api.MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{
+				Peer:  peer,
+				MaxID: maxID,
+			})
+		}
+		if err == nil {
+			tc.events <- MsgChatReadInbox{ChatID: chatID, UnreadCount: 0}
+		}
 	}
 }
 
-func (tc *TelegramClient) SendMessage(chatID int64, accessHash int64, isChannel bool, text string) {
+func (tc *TelegramClient) SendMessage(chatID int64, accessHash int64, isChannel bool, text string, replyTo int64) {
 	ctx := tc.ctx
 	if ctx == nil {
 		return
@@ -210,13 +245,68 @@ func (tc *TelegramClient) SendMessage(chatID int64, accessHash int64, isChannel 
 		peer = &tg.InputPeerChat{ChatID: -chatID}
 	}
 
-	_, err := tc.api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
+	req := &tg.MessagesSendMessageRequest{
 		Peer:     peer,
 		Message:  text,
 		RandomID: rand.Int63(),
-	})
+	}
+	if replyTo > 0 {
+		req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: int(replyTo)}
+	}
+
+	_, err := tc.api.MessagesSendMessage(ctx, req)
 	if err != nil {
 		tc.events <- MsgError{Err: fmt.Sprintf("send: %v", err)}
+	}
+}
+
+func (tc *TelegramClient) DeleteMessage(chatID int64, accessHash int64, isChannel bool, msgID int64) {
+	ctx := tc.ctx
+	if ctx == nil {
+		return
+	}
+
+	if isChannel {
+		_, err := tc.api.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{
+			Channel: &tg.InputChannel{ChannelID: chatID, AccessHash: accessHash},
+			ID:      []int{int(msgID)},
+		})
+		if err != nil {
+			tc.events <- MsgError{Err: fmt.Sprintf("delete: %v", err)}
+		}
+	} else {
+		_, err := tc.api.MessagesDeleteMessages(ctx, &tg.MessagesDeleteMessagesRequest{
+			ID:     []int{int(msgID)},
+			Revoke: true,
+		})
+		if err != nil {
+			tc.events <- MsgError{Err: fmt.Sprintf("delete: %v", err)}
+		}
+	}
+}
+
+func (tc *TelegramClient) EditMessage(chatID int64, accessHash int64, isChannel bool, msgID int64, text string) {
+	ctx := tc.ctx
+	if ctx == nil {
+		return
+	}
+
+	var peer tg.InputPeerClass
+	if isChannel {
+		peer = &tg.InputPeerChannel{ChannelID: chatID, AccessHash: accessHash}
+	} else if chatID > 0 {
+		peer = &tg.InputPeerUser{UserID: chatID, AccessHash: accessHash}
+	} else {
+		peer = &tg.InputPeerChat{ChatID: -chatID}
+	}
+
+	_, err := tc.api.MessagesEditMessage(ctx, &tg.MessagesEditMessageRequest{
+		Peer:    peer,
+		ID:      int(msgID),
+		Message: text,
+	})
+	if err != nil {
+		tc.events <- MsgError{Err: fmt.Sprintf("edit: %v", err)}
 	}
 }
 
