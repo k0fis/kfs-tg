@@ -150,7 +150,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.chatCursor++
 			}
 		} else if m.panel == PanelMessages && len(m.messages) > 0 {
-			if m.msgCursor < len(m.messages)-1 {
+			if m.msgCursor < 0 {
+				m.msgCursor = len(m.messages) - 1
+			} else if m.msgCursor < len(m.messages)-1 {
 				m.msgCursor++
 			}
 			m.updateMsgView()
@@ -159,7 +161,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.panel == PanelChatList && m.chatCursor > 0 {
 			m.chatCursor--
 		} else if m.panel == PanelMessages && len(m.messages) > 0 {
-			if m.msgCursor > 0 {
+			if m.msgCursor < 0 {
+				m.msgCursor = len(m.messages) - 1
+			} else if m.msgCursor > 0 {
 				m.msgCursor--
 			}
 			m.updateMsgView()
@@ -347,6 +351,8 @@ func (m *Model) updateMsgView() {
 	}
 
 	var content string
+	cursorLine := 0
+	lineCount := 0
 	for i, msg := range m.messages {
 		ts := msg.Timestamp.Format("15:04")
 		var line string
@@ -357,14 +363,24 @@ func (m *Model) updateMsgView() {
 		}
 		wrapped := wrapText(line, msgWidth)
 		if i == m.msgCursor {
-			// Highlight selected message
+			cursorLine = lineCount
 			wrapped = "│ " + strings.ReplaceAll(wrapped, "\n", "\n│ ")
 		}
 		content += wrapped + "\n"
+		lineCount += strings.Count(wrapped, "\n") + 1
 	}
 	m.msgView.SetContent(content)
 	if m.msgCursor < 0 {
 		m.msgView.GotoBottom()
+	} else {
+		// Scroll viewport to keep cursor visible
+		viewH := m.msgView.Height()
+		offset := m.msgView.YOffset()
+		if cursorLine < offset {
+			m.msgView.SetYOffset(cursorLine)
+		} else if cursorLine >= offset+viewH {
+			m.msgView.SetYOffset(cursorLine - viewH + 1)
+		}
 	}
 }
 
