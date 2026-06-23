@@ -138,9 +138,9 @@ func (m Model) viewMain() string {
 	if len(chats) > 0 && m.chatCursor < len(chats) {
 		chatName = chats[m.chatCursor].Title
 	}
-	leftInfo := fmt.Sprintf(" [%s] %s", modeStr, chatName)
-	rightInfo := fmt.Sprintf("kfs-tg %s ", version)
-	gap := availW - len(leftInfo) - len(rightInfo)
+	leftInfo := fmt.Sprintf("[%s] %s", modeStr, chatName)
+	rightInfo := fmt.Sprintf("kfs-tg %s", version)
+	gap := availW - len(leftInfo) - len(rightInfo) - 4 // -4 for padding (2 each side)
 	if gap < 0 {
 		gap = 0
 	}
