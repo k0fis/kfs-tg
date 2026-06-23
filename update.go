@@ -7,9 +7,12 @@ import (
 // -- Custom messages from Telegram --
 
 type MsgAuthReady struct{}
+type MsgNeedAuth struct{ State string }
 type MsgChatsLoaded struct{ Chats []Chat }
 type MsgMessagesLoaded struct{ Messages []Message }
 type MsgNewMessage struct{ Message Message }
+type MsgEditedMessage struct{ Message Message }
+type MsgDeletedMessages struct{ MessageIDs []int64 }
 type MsgError struct{ Err string }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -23,6 +26,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case MsgNeedAuth:
+		m.screen = ScreenLogin
+		m.authState = msg.State
+		m.authInput = ""
+		m.status = "Enter " + msg.State
+		return m, m.waitForTgEvent()
 
 	case MsgAuthReady:
 		m.screen = ScreenMain
@@ -43,6 +53,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messages = append(m.messages, msg.Message)
 			m.updateMsgView()
 		}
+		return m, m.waitForTgEvent()
+
+	case MsgEditedMessage:
+		for i, existing := range m.messages {
+			if existing.ID == msg.Message.ID {
+				m.messages[i] = msg.Message
+				m.updateMsgView()
+				break
+			}
+		}
+		return m, m.waitForTgEvent()
+
+	case MsgDeletedMessages:
+		filtered := m.messages[:0]
+		for _, existing := range m.messages {
+			deleted := false
+			for _, id := range msg.MessageIDs {
+				if existing.ID == id {
+					deleted = true
+					break
+				}
+			}
+			if !deleted {
+				filtered = append(filtered, existing)
+			}
+		}
+		m.messages = filtered
+		m.updateMsgView()
 		return m, m.waitForTgEvent()
 
 	case MsgError:
@@ -69,7 +107,14 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.chatCursor--
 		}
 	case ActionMoveRight:
-		m.panel = PanelMessages
+		if m.panel == PanelChatList && len(m.chats) > 0 {
+			// Load messages for selected chat
+			m.panel = PanelMessages
+			chat := m.chats[m.chatCursor]
+			go m.tg.LoadMessages(chat.ID, chat.AccessHash, chat.IsChannel)
+		} else {
+			m.panel = PanelMessages
+		}
 	case ActionMoveLeft:
 		m.panel = PanelChatList
 
@@ -93,9 +138,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	case ActionSendMessage:
-		if m.mode == ModeInsert {
-			// TODO: send via telegram
-			m.input.Reset()
+		if m.mode == ModeInsert && len(m.chats) > 0 {
+			text := m.input.Value()
+			if text != "" {
+				chat := m.chats[m.chatCursor]
+				go m.tg.SendMessage(chat.ID, chat.AccessHash, chat.IsChannel, text)
+				m.input.Reset()
+			}
 			m.mode = ModeNormal
 			m.input.Blur()
 		}

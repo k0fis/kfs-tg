@@ -9,6 +9,8 @@ type Chat struct {
 	LastMessage string
 	LastDate    time.Time
 	Kind        ChatKind
+	AccessHash  int64
+	IsChannel   bool
 }
 
 type ChatKind int
@@ -27,4 +29,5 @@ type Message struct {
 	Text       string
 	Timestamp  time.Time
 	IsOutgoing bool
+	senderID   int64 // internal, for resolving name
 }
