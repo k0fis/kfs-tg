@@ -64,8 +64,7 @@ func (tc *TelegramClient) Start(ctx context.Context) error {
 		}
 
 		if !status.Authorized {
-			// Need to authenticate
-			tc.events <- MsgNeedAuth{State: "phone"}
+			// Need to authenticate — auth callbacks will send MsgNeedAuth
 			if err := tc.authenticate(ctx); err != nil {
 				tc.events <- MsgError{Err: fmt.Sprintf("auth failed: %v", err)}
 				return err
