@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -82,7 +84,8 @@ func (m Model) Init() tea.Cmd {
 func (m Model) startTelegram() tea.Cmd {
 	return func() tea.Msg {
 		go func() {
-			if err := m.tg.Start(m.tg.ctx); err != nil {
+			ctx := context.Background()
+			if err := m.tg.Start(ctx); err != nil {
 				m.tgEvents <- MsgError{Err: err.Error()}
 			}
 		}()
