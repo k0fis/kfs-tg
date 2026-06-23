@@ -81,38 +81,36 @@ func (m Model) viewLogin() string {
 }
 
 func (m Model) viewMain() string {
-	// Border adds 2 chars each side (left+right=2, top+bottom=2)
-	borderW := 2
-	borderH := 2
-
-	listInnerW := m.config.UI.ChatListWidth
+	// Border adds 1 char each side for rounded border
 	statusHeight := 1
 
 	// Available height for panels (minus status bar)
 	availH := m.height - statusHeight
 
-	// Right panel: split into messages + input
-	inputInnerH := 3
-	msgInnerH := availH - inputInnerH - borderH*2 // two bordered panels stacked
-	if msgInnerH < 5 {
-		msgInnerH = 5
-	}
-
-	// Right panel inner width (total width - left panel - borders)
-	msgInnerW := m.width - listInnerW - borderW*2
+	listInnerW := m.config.UI.ChatListWidth
+	// Right panel width: fill remaining space (minus left panel with border)
+	msgInnerW := m.width - listInnerW - 2 - 2 // left border + right border
 	if msgInnerW < 20 {
 		msgInnerW = 20
 	}
 
-	// Left panel inner height
-	leftInnerH := availH - borderH
+	// Right panel: split into messages + input
+	inputInnerH := 3
+	// Both panels have top+bottom border (2 each = 4 total for right side)
+	msgInnerH := availH - inputInnerH - 4
+	if msgInnerH < 5 {
+		msgInnerH = 5
+	}
+
+	// Left panel fills full available height
+	leftInnerH := availH - 2 // minus border top+bottom
 	if leftInnerH < 5 {
 		leftInnerH = 5
 	}
 
-	// Chat list
-	chatContent := m.renderChatList(listInnerW, leftInnerH-2)
-	chatContent += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("kfs-tg "+version)
+	// Chat list content (leave 1 line for version at bottom)
+	chatContent := m.renderChatList(listInnerW, leftInnerH-1)
+
 	chatStyle := styleBorderInactive
 	if m.panel == PanelChatList {
 		chatStyle = styleBorderActive
@@ -135,7 +133,7 @@ func (m Model) viewMain() string {
 
 	main := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Status bar
+	// Status bar (full width)
 	modeStr := "NORMAL"
 	if m.mode == ModeInsert {
 		modeStr = "INSERT"
@@ -145,7 +143,7 @@ func (m Model) viewMain() string {
 		chatName = m.chats[m.chatCursor].Title
 	}
 	status := styleStatusBar.Width(m.width).Render(
-		fmt.Sprintf(" [%s] %s  %s", modeStr, chatName, m.status),
+		fmt.Sprintf(" [%s] %s │ kfs-tg %s", modeStr, chatName, version),
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, main, status)
@@ -157,7 +155,7 @@ func (m Model) renderChatList(width, height int) string {
 	}
 
 	var sb strings.Builder
-	visible := height - 2 // reserve space for version label
+	visible := height
 	start := 0
 	if m.chatCursor >= visible {
 		start = m.chatCursor - visible + 1
