@@ -95,7 +95,7 @@ func (m Model) viewMain() string {
 	}
 
 	// Input panel total height
-	inputH := 5 // 3 content + 2 border
+	inputH := 4 // 2 content + 2 border
 	// Messages panel total height
 	msgH := availH - inputH
 	if msgH < 7 {
