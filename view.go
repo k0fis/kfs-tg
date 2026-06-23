@@ -106,7 +106,8 @@ func (m Model) viewMain() string {
 	leftH := availH
 
 	// Render chat list content (inner dimensions = total - 2)
-	chatContent := m.renderChatList(leftW-2, leftH-2)
+	chatContent := m.renderChatList(leftW-2, leftH-3)
+	chatContent += lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("v" + version)
 	chatStyle := styleBorderInactive
 	if m.panel == PanelChatList {
 		chatStyle = styleBorderActive
