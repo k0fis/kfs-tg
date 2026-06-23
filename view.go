@@ -81,34 +81,55 @@ func (m Model) viewLogin() string {
 }
 
 func (m Model) viewMain() string {
-	listWidth := m.config.UI.ChatListWidth
-	msgWidth := m.width - listWidth - 4 // borders
+	// Border adds 2 chars each side (left+right=2, top+bottom=2)
+	borderW := 2
+	borderH := 2
 
-	// Heights: total = chat list = msg panel + input + status
-	// status = 1 line, input = 3 lines (with border), rest = messages
-	inputHeight := 3
+	listInnerW := m.config.UI.ChatListWidth
 	statusHeight := 1
-	msgHeight := m.height - inputHeight - statusHeight - 4 // 4 = borders overhead
+
+	// Available height for panels (minus status bar)
+	availH := m.height - statusHeight
+
+	// Right panel: split into messages + input
+	inputInnerH := 3
+	msgInnerH := availH - inputInnerH - borderH*2 // two bordered panels stacked
+	if msgInnerH < 5 {
+		msgInnerH = 5
+	}
+
+	// Right panel inner width (total width - left panel - borders)
+	msgInnerW := m.width - listInnerW - borderW*2
+	if msgInnerW < 20 {
+		msgInnerW = 20
+	}
+
+	// Left panel inner height
+	leftInnerH := availH - borderH
+	if leftInnerH < 5 {
+		leftInnerH = 5
+	}
 
 	// Chat list
-	chatContent := m.renderChatList(listWidth-2, m.height-statusHeight-4)
+	chatContent := m.renderChatList(listInnerW, leftInnerH-2)
 	chatContent += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("kfs-tg "+version)
 	chatStyle := styleBorderInactive
 	if m.panel == PanelChatList {
 		chatStyle = styleBorderActive
 	}
-	leftPanel := chatStyle.Width(listWidth).Height(m.height - statusHeight - 2).Render(chatContent)
+	leftPanel := chatStyle.Width(listInnerW).Height(leftInnerH).Render(chatContent)
 
-	// Messages + input
+	// Messages
 	msgContent := m.msgView.View()
-	inputContent := m.input.View()
-
 	msgStyle := styleBorderInactive
 	if m.panel == PanelMessages {
 		msgStyle = styleBorderActive
 	}
-	msgPanel := msgStyle.Width(msgWidth).Height(msgHeight).Render(msgContent)
-	inputPanel := styleBorderInactive.Width(msgWidth).Height(inputHeight).Render(inputContent)
+	msgPanel := msgStyle.Width(msgInnerW).Height(msgInnerH).Render(msgContent)
+
+	// Input
+	inputContent := m.input.View()
+	inputPanel := styleBorderInactive.Width(msgInnerW).Height(inputInnerH).Render(inputContent)
 
 	rightPanel := lipgloss.JoinVertical(lipgloss.Left, msgPanel, inputPanel)
 
