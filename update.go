@@ -92,10 +92,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// Login screen has its own key handling
+	if m.screen == ScreenLogin {
+		return m.handleLoginKey(msg)
+	}
+
 	action := MapKey(msg, m.mode)
 
 	switch action {
 	case ActionQuit:
+		m.tg.Stop()
 		return m, tea.Quit
 
 	case ActionMoveDown:
@@ -106,7 +112,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.panel == PanelChatList && m.chatCursor > 0 {
 			m.chatCursor--
 		}
-	case ActionMoveRight:
+	case ActionMoveRight, ActionEnter:
 		if m.panel == PanelChatList && len(m.chats) > 0 {
 			// Load messages for selected chat
 			m.panel = PanelMessages
@@ -153,6 +159,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.msgView.PageDown()
 	case ActionPageUp:
 		m.msgView.PageUp()
+	case ActionRefresh:
+		go m.tg.loadChats(m.tg.ctx)
+		m.status = "Refreshing..."
 	}
 
 	return m, nil
@@ -170,4 +179,32 @@ func (m *Model) updateMsgView() {
 	}
 	m.msgView.SetContent(content)
 	m.msgView.GotoBottom()
+}
+
+func (m Model) handleLoginKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+
+	switch key {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "enter":
+		if m.authInput != "" {
+			input := m.authInput
+			m.authInput = ""
+			m.status = "Verifying..."
+			go m.tg.SubmitAuth(input)
+		}
+	case "backspace":
+		if len(m.authInput) > 0 {
+			m.authInput = m.authInput[:len(m.authInput)-1]
+		}
+	default:
+		if len(key) == 1 {
+			m.authInput += key
+		} else if len(msg.Text) > 0 {
+			m.authInput += msg.Text
+		}
+	}
+
+	return m, nil
 }

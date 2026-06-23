@@ -62,8 +62,10 @@ func mapNormal(msg tea.KeyPressMsg) Action {
 		return ActionMoveUp
 	case "h", "left":
 		return ActionMoveLeft
-	case "l", "right", "enter":
+	case "l", "right":
 		return ActionMoveRight
+	case "enter":
+		return ActionEnter
 	case "i":
 		return ActionEnterInsert
 	case "/":

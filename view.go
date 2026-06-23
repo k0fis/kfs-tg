@@ -52,9 +52,31 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) viewLogin() string {
+	var prompt string
+	switch m.authState {
+	case "phone":
+		prompt = "Enter phone number (e.g. +420123456789):"
+	case "code":
+		prompt = "Enter verification code:"
+	case "password":
+		prompt = "Enter 2FA password:"
+	default:
+		prompt = "Connecting to Telegram..."
+	}
+
+	display := m.authInput
+	if m.authState == "password" && len(display) > 0 {
+		display = string(make([]byte, len(display)))
+		for i := range display {
+			display = display[:i] + "*" + display[i+1:]
+		}
+	}
+
+	content := fmt.Sprintf("  kfs-tg\n\n  %s\n\n  > %s█\n\n  %s", prompt, display, m.status)
+
 	return lipgloss.Place(m.width, m.height,
 		lipgloss.Center, lipgloss.Center,
-		"kfs-tg\n\nConnecting to Telegram...\n\n"+m.status,
+		content,
 	)
 }
 

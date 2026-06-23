@@ -25,16 +25,15 @@ type TelegramClient struct {
 	cancel  context.CancelFunc
 	selfID  int64
 
-	// Auth flow callbacks
-	phoneFunc    func() string
-	codeFunc     func() string
-	passwordFunc func() string
+	// Auth: channel for interactive input from TUI
+	authInput chan string
 }
 
 func NewTelegramClient(cfg *Config, events chan tea.Msg) *TelegramClient {
 	return &TelegramClient{
-		cfg:    cfg,
-		events: events,
+		cfg:       cfg,
+		events:    events,
+		authInput: make(chan string, 1),
 	}
 }
 
@@ -103,26 +102,22 @@ type authFlow struct {
 }
 
 func (a *authFlow) Phone(_ context.Context) (string, error) {
-	if a.tc.phoneFunc != nil {
-		return a.tc.phoneFunc(), nil
-	}
-	return "", fmt.Errorf("no phone provided")
+	a.tc.events <- MsgNeedAuth{State: "phone"}
+	// Block until TUI sends input
+	phone := <-a.tc.authInput
+	return phone, nil
 }
 
 func (a *authFlow) Code(_ context.Context, _ *tg.AuthSentCode) (string, error) {
 	a.tc.events <- MsgNeedAuth{State: "code"}
-	if a.tc.codeFunc != nil {
-		return a.tc.codeFunc(), nil
-	}
-	return "", fmt.Errorf("no code provided")
+	code := <-a.tc.authInput
+	return code, nil
 }
 
 func (a *authFlow) Password(_ context.Context) (string, error) {
 	a.tc.events <- MsgNeedAuth{State: "password"}
-	if a.tc.passwordFunc != nil {
-		return a.tc.passwordFunc(), nil
-	}
-	return "", fmt.Errorf("no password provided")
+	password := <-a.tc.authInput
+	return password, nil
 }
 
 func (a *authFlow) AcceptTermsOfService(_ context.Context, tos tg.HelpTermsOfService) error {
@@ -138,11 +133,9 @@ func (tc *TelegramClient) authenticate(ctx context.Context) error {
 	return flow.Run(ctx, tc.client.Auth())
 }
 
-// SetAuthCallbacks sets the callbacks for interactive auth.
-func (tc *TelegramClient) SetAuthCallbacks(phone, code, password func() string) {
-	tc.phoneFunc = phone
-	tc.codeFunc = code
-	tc.passwordFunc = password
+// SubmitAuth sends user input to the blocked auth callback.
+func (tc *TelegramClient) SubmitAuth(input string) {
+	tc.authInput <- input
 }
 
 // --- Load data ---
