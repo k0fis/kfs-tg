@@ -81,59 +81,54 @@ func (m Model) viewLogin() string {
 }
 
 func (m Model) viewMain() string {
-	// Border adds 1 char each side for rounded border
-	statusHeight := 1
+	// lipgloss Width/Height = TOTAL including border (frame=2 for rounded border)
+	statusH := 1
+	availH := m.height - statusH
+	availW := m.width
 
-	// Available height for panels (minus status bar)
-	availH := m.height - statusHeight
-
-	listInnerW := m.config.UI.ChatListWidth
-	// Right panel width: fill remaining space (minus left panel with border)
-	msgInnerW := m.width - listInnerW - 2 - 2 // left border + right border
-	if msgInnerW < 20 {
-		msgInnerW = 20
+	// Left panel total width (including border)
+	leftW := m.config.UI.ChatListWidth + 2
+	// Right panel total width (fill remaining)
+	rightW := availW - leftW
+	if rightW < 25 {
+		rightW = 25
 	}
 
-	// Right panel: split into messages + input
-	inputInnerH := 3
-	// Both panels have top+bottom border (2 each = 4 total for right side)
-	msgInnerH := availH - inputInnerH - 4
-	if msgInnerH < 5 {
-		msgInnerH = 5
+	// Input panel total height
+	inputH := 5 // 3 content + 2 border
+	// Messages panel total height
+	msgH := availH - inputH
+	if msgH < 7 {
+		msgH = 7
 	}
 
-	// Left panel fills full available height
-	leftInnerH := availH - 2 // minus border top+bottom
-	if leftInnerH < 5 {
-		leftInnerH = 5
-	}
+	// Chat list panel = full available height
+	leftH := availH
 
-	// Chat list content (leave 1 line for version at bottom)
-	chatContent := m.renderChatList(listInnerW, leftInnerH-1)
-
+	// Render chat list content (inner dimensions = total - 2)
+	chatContent := m.renderChatList(leftW-2, leftH-2)
 	chatStyle := styleBorderInactive
 	if m.panel == PanelChatList {
 		chatStyle = styleBorderActive
 	}
-	leftPanel := chatStyle.Width(listInnerW).Height(leftInnerH).Render(chatContent)
+	leftPanel := chatStyle.Width(leftW).Height(leftH).Render(chatContent)
 
-	// Messages
+	// Messages panel
 	msgContent := m.msgView.View()
 	msgStyle := styleBorderInactive
 	if m.panel == PanelMessages {
 		msgStyle = styleBorderActive
 	}
-	msgPanel := msgStyle.Width(msgInnerW).Height(msgInnerH).Render(msgContent)
+	msgPanel := msgStyle.Width(rightW).Height(msgH).Render(msgContent)
 
-	// Input
+	// Input panel
 	inputContent := m.input.View()
-	inputPanel := styleBorderInactive.Width(msgInnerW).Height(inputInnerH).Render(inputContent)
+	inputPanel := styleBorderInactive.Width(rightW).Height(inputH).Render(inputContent)
 
 	rightPanel := lipgloss.JoinVertical(lipgloss.Left, msgPanel, inputPanel)
-
 	main := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Status bar (full width)
+	// Status bar
 	modeStr := "NORMAL"
 	if m.mode == ModeInsert {
 		modeStr = "INSERT"
@@ -142,7 +137,7 @@ func (m Model) viewMain() string {
 	if len(m.chats) > 0 {
 		chatName = m.chats[m.chatCursor].Title
 	}
-	status := styleStatusBar.Width(m.width).Render(
+	status := styleStatusBar.Width(availW).Render(
 		fmt.Sprintf(" [%s] %s │ kfs-tg %s", modeStr, chatName, version),
 	)
 

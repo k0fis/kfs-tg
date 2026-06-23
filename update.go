@@ -24,19 +24,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Match the layout calculation in view.go
-		msgInnerW := m.width - m.config.UI.ChatListWidth - 4
-		inputInnerH := 3
-		msgInnerH := m.height - 1 - inputInnerH - 4 // status + borders
-		if msgInnerW < 20 {
-			msgInnerW = 20
+		// Right panel inner width = total right width - 2 (border)
+		rightW := m.width - m.config.UI.ChatListWidth - 2
+		innerW := rightW - 2
+		// Messages inner height = total available - input(5) - status(1) - border(2)
+		innerH := m.height - 1 - 5 - 2
+		if innerW < 20 {
+			innerW = 20
 		}
-		if msgInnerH < 5 {
-			msgInnerH = 5
+		if innerH < 5 {
+			innerH = 5
 		}
-		m.msgView.SetWidth(msgInnerW)
-		m.msgView.SetHeight(msgInnerH)
-		m.input.SetWidth(msgInnerW)
+		m.msgView.SetWidth(innerW)
+		m.msgView.SetHeight(innerH)
+		m.input.SetWidth(innerW)
 		return m, nil
 
 	case tea.KeyPressMsg:
