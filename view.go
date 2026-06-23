@@ -140,7 +140,7 @@ func (m Model) viewMain() string {
 	}
 	leftInfo := fmt.Sprintf("[%s] %s", modeStr, chatName)
 	rightInfo := fmt.Sprintf("kfs-tg %s", version)
-	gap := availW - len(leftInfo) - len(rightInfo) - 4 // -4 for padding (2 each side)
+	gap := availW - lipgloss.Width(leftInfo) - lipgloss.Width(rightInfo) - 4 // -4 for padding (2 each side)
 	if gap < 0 {
 		gap = 0
 	}
