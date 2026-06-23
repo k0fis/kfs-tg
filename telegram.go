@@ -10,6 +10,7 @@ import (
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/tg"
 
 	tea "charm.land/bubbletea/v2"
@@ -40,6 +41,9 @@ func NewTelegramClient(cfg *Config, events chan tea.Msg) *TelegramClient {
 // Start connects to Telegram and begins receiving updates.
 // Blocks until ctx is cancelled — run in a goroutine.
 func (tc *TelegramClient) Start(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	tc.ctx, tc.cancel = context.WithCancel(ctx)
 
 	sessionPath := filepath.Join(DataDir(), "session.json")
@@ -51,6 +55,7 @@ func (tc *TelegramClient) Start(ctx context.Context) error {
 		telegram.Options{
 			SessionStorage: storage,
 			UpdateHandler:  telegram.UpdateHandlerFunc(tc.handleUpdates),
+			Resolver:       dcs.Websocket(dcs.WebsocketOptions{}),
 		},
 	)
 
