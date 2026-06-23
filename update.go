@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -211,27 +212,53 @@ func (m *Model) updateMsgView() {
 }
 
 func wrapText(s string, width int) string {
-	if len(s) <= width {
+	if width < 10 {
 		return s
 	}
-	var result string
-	for len(s) > width {
+	runes := []rune(s)
+	if len(runes) <= width {
+		return s
+	}
+	var lines []string
+	indent := "      "
+	first := true
+	for len(runes) > 0 {
+		w := width
+		if !first {
+			w = width - len(indent)
+		}
+		if len(runes) <= w {
+			if first {
+				lines = append(lines, string(runes))
+			} else {
+				lines = append(lines, indent+string(runes))
+			}
+			break
+		}
 		// Find last space before width
-		cut := width
-		for cut > width/2 {
-			if s[cut] == ' ' {
+		cut := w
+		for cut > w/2 {
+			if runes[cut] == ' ' {
 				break
 			}
 			cut--
 		}
-		if cut <= width/2 {
-			cut = width // no space found, hard break
+		if cut <= w/2 {
+			cut = w
 		}
-		result += s[:cut] + "\n"
-		s = "      " + s[cut:] // indent continuation
+		if first {
+			lines = append(lines, string(runes[:cut]))
+			first = false
+		} else {
+			lines = append(lines, indent+string(runes[:cut]))
+		}
+		runes = runes[cut:]
+		// Skip leading space on next line
+		if len(runes) > 0 && runes[0] == ' ' {
+			runes = runes[1:]
+		}
 	}
-	result += s
-	return result
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) handleLoginKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

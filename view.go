@@ -91,7 +91,8 @@ func (m Model) viewMain() string {
 	msgHeight := m.height - inputHeight - statusHeight - 4 // 4 = borders overhead
 
 	// Chat list
-	chatContent := m.renderChatList(listWidth-2, m.height-statusHeight-2)
+	chatContent := m.renderChatList(listWidth-2, m.height-statusHeight-4)
+	chatContent += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("kfs-tg "+version)
 	chatStyle := styleBorderInactive
 	if m.panel == PanelChatList {
 		chatStyle = styleBorderActive
