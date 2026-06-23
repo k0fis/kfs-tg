@@ -184,6 +184,15 @@ func (tc *TelegramClient) LoadMessages(chatID int64, accessHash int64, isChannel
 
 	messages := tc.parseMessages(result)
 	tc.events <- MsgMessagesLoaded{Messages: messages}
+
+	// Mark messages as read
+	if len(messages) > 0 {
+		maxID := int(messages[len(messages)-1].ID)
+		tc.api.MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{
+			Peer:  peer,
+			MaxID: maxID,
+		})
+	}
 }
 
 func (tc *TelegramClient) SendMessage(chatID int64, accessHash int64, isChannel bool, text string) {
@@ -259,6 +268,19 @@ func (tc *TelegramClient) handleSingleUpdate(u tg.UpdateClass, users []tg.UserCl
 		}
 	case *tg.UpdateDeleteMessages:
 		tc.events <- MsgDeletedMessages{MessageIDs: int64Slice(upd.Messages)}
+	case *tg.UpdateReadHistoryInbox:
+		if p, ok := upd.Peer.(*tg.PeerUser); ok {
+			tc.events <- MsgChatReadInbox{ChatID: int64(p.UserID), UnreadCount: upd.StillUnreadCount}
+		} else if p, ok := upd.Peer.(*tg.PeerChat); ok {
+			tc.events <- MsgChatReadInbox{ChatID: int64(-p.ChatID), UnreadCount: upd.StillUnreadCount}
+		}
+	case *tg.UpdateReadHistoryOutbox:
+		// Our read confirmation came back — clear unread for this chat
+		if p, ok := upd.Peer.(*tg.PeerUser); ok {
+			tc.events <- MsgChatReadInbox{ChatID: int64(p.UserID), UnreadCount: 0}
+		} else if p, ok := upd.Peer.(*tg.PeerChat); ok {
+			tc.events <- MsgChatReadInbox{ChatID: int64(-p.ChatID), UnreadCount: 0}
+		}
 	}
 }
 

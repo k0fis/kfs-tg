@@ -15,6 +15,7 @@ type MsgMessagesLoaded struct{ Messages []Message }
 type MsgNewMessage struct{ Message Message }
 type MsgEditedMessage struct{ Message Message }
 type MsgDeletedMessages struct{ MessageIDs []int64 }
+type MsgChatReadInbox struct{ ChatID int64; UnreadCount int }
 type MsgError struct{ Err string }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -85,6 +86,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.messages = filtered
 		m.updateMsgView()
+		return m, m.waitForTgEvent()
+
+	case MsgChatReadInbox:
+		for i := range m.chats {
+			if m.chats[i].ID == msg.ChatID {
+				m.chats[i].UnreadCount = msg.UnreadCount
+				break
+			}
+		}
 		return m, m.waitForTgEvent()
 
 	case MsgError:
@@ -180,17 +190,48 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) updateMsgView() {
+	msgWidth := m.width - m.config.UI.ChatListWidth - 8 // usable width inside borders
+	if msgWidth < 20 {
+		msgWidth = 80
+	}
+
 	var content string
 	for _, msg := range m.messages {
 		ts := msg.Timestamp.Format("15:04")
+		var line string
 		if msg.IsOutgoing {
-			content += ts + " > " + msg.Text + "\n"
+			line = ts + " > " + msg.Text
 		} else {
-			content += ts + " " + msg.SenderName + ": " + msg.Text + "\n"
+			line = ts + " " + msg.SenderName + ": " + msg.Text
 		}
+		content += wrapText(line, msgWidth) + "\n"
 	}
 	m.msgView.SetContent(content)
 	m.msgView.GotoBottom()
+}
+
+func wrapText(s string, width int) string {
+	if len(s) <= width {
+		return s
+	}
+	var result string
+	for len(s) > width {
+		// Find last space before width
+		cut := width
+		for cut > width/2 {
+			if s[cut] == ' ' {
+				break
+			}
+			cut--
+		}
+		if cut <= width/2 {
+			cut = width // no space found, hard break
+		}
+		result += s[:cut] + "\n"
+		s = "      " + s[cut:] // indent continuation
+	}
+	result += s
+	return result
 }
 
 func (m Model) handleLoginKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
