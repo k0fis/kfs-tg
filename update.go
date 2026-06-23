@@ -193,6 +193,7 @@ func (m Model) handleLoginKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.authInput = ""
 			m.status = "Verifying..."
 			go m.tg.SubmitAuth(input)
+			return m, m.waitForTgEvent()
 		}
 	case "backspace":
 		if len(m.authInput) > 0 {
