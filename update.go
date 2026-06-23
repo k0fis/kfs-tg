@@ -22,8 +22,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.msgView.SetWidth(m.width - m.config.UI.ChatListWidth - 4)
-		m.msgView.SetHeight(m.height - 6)
+		msgWidth := m.width - m.config.UI.ChatListWidth - 6
+		m.msgView.SetWidth(msgWidth)
+		m.msgView.SetHeight(m.height - 10)
+		m.input.SetWidth(msgWidth)
 		return m, nil
 
 	case tea.KeyPressMsg:
